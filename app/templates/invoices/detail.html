@@ -22,16 +22,43 @@
     <p class="text-muted small mb-0">Uploaded {{ d.get('upload_timestamp','')[:16] | replace('T',' ') }} · {{ invoice.vendor_name or 'Unknown vendor' }}</p>
   </div>
   <div class="d-flex gap-2 flex-wrap">
-    {% if current_user.can_approve() and invoice.status == 'pending' %}
-    <form method="POST" action="{{ url_for('invoices.approve', invoice_id=invoice.id) }}">
-      <button type="submit" class="btn btn-success btn-sm">
-        <i class="bi bi-check-lg me-1"></i>Approve
-      </button>
-    </form>
-    <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">
-      <i class="bi bi-x-lg me-1"></i>Reject
-    </button>
+    {# ── Dynamic workflow buttons based on current status ── #}
+    {% if current_user.can_approve() %}
+      {% if invoice.status == 'pending' %}
+        {# pending → approve #}
+        <form method="POST" action="{{ url_for('invoices.transition', invoice_id=invoice.id) }}">
+          <input type="hidden" name="new_status" value="approved">
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="bi bi-check-lg me-1"></i>Approve
+          </button>
+        </form>
+        {# pending → reject #}
+        <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">
+          <i class="bi bi-x-lg me-1"></i>Reject
+        </button>
+      {% elif invoice.status == 'approved' %}
+        {# approved → pending (undo) #}
+        <form method="POST" action="{{ url_for('invoices.transition', invoice_id=invoice.id) }}">
+          <input type="hidden" name="new_status" value="pending">
+          <input type="hidden" name="reason" value="Approval undone">
+          <button type="submit" class="btn btn-outline-warning btn-sm"
+                  onclick="return confirm('Undo approval and return to Pending?')">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Undo Approval
+          </button>
+        </form>
+      {% elif invoice.status == 'rejected' %}
+        {# rejected → pending (reopen) #}
+        <form method="POST" action="{{ url_for('invoices.transition', invoice_id=invoice.id) }}">
+          <input type="hidden" name="new_status" value="pending">
+          <input type="hidden" name="reason" value="Rejection undone – reopened">
+          <button type="submit" class="btn btn-outline-primary btn-sm"
+                  onclick="return confirm('Reopen this invoice and set it back to Pending?')">
+            <i class="bi bi-arrow-repeat me-1"></i>Reopen
+          </button>
+        </form>
+      {% endif %}
     {% endif %}
+
     <form method="POST" action="{{ url_for('invoices.reanalyse', invoice_id=invoice.id) }}">
       <button type="submit" class="btn btn-outline-warning btn-sm">
         <i class="bi bi-shield-check me-1"></i>Re-analyse Risk
@@ -39,7 +66,7 @@
     </form>
     {% if current_user.is_admin() %}
     <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">
-      <i class="bi bi-trash me-1"></i>Delete
+      <i class="bi bi-trash me-1"></i>Move to Bin
     </button>
     {% endif %}
   </div>
@@ -269,22 +296,65 @@
     </div>
     {% endif %}
 
+    <!-- Status History Timeline -->
+    {% set history = invoice_dict.get('status_history', []) %}
+    {% if history %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3"><i class="bi bi-arrow-left-right me-1"></i>Status History</h6>
+        <div class="position-relative ps-3" style="border-left:2px solid #E2E8F0;">
+          {% for entry in history | reverse %}
+          <div class="mb-3 position-relative">
+            <div class="position-absolute" style="left:-1.15rem;top:.2rem;">
+              {% set to_s = entry.get('to_status','') %}
+              {% if to_s == 'approved' %}
+                <i class="bi bi-check-circle-fill text-success" style="font-size:.9rem;"></i>
+              {% elif to_s == 'rejected' %}
+                <i class="bi bi-x-circle-fill text-danger" style="font-size:.9rem;"></i>
+              {% else %}
+                <i class="bi bi-arrow-repeat text-warning" style="font-size:.9rem;"></i>
+              {% endif %}
+            </div>
+            <div class="ms-2">
+              <div class="small fw-semibold">
+                <span class="status-badge badge-{{ entry.get('from_status','') }}">{{ entry.get('from_status','') }}</span>
+                <i class="bi bi-arrow-right mx-1 text-muted"></i>
+                <span class="status-badge badge-{{ to_s }}">{{ to_s }}</span>
+              </div>
+              <div class="text-muted" style="font-size:.75rem;">
+                by {{ entry.get('changed_by_name','Unknown') }} ·
+                {{ entry.get('timestamp','')[:16] | replace('T',' ') if entry.get('timestamp') else '' }}
+              </div>
+              {% if entry.get('reason') %}
+              <div class="text-muted small fst-italic">"{{ entry.reason }}"</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Audit Trail -->
     <div class="card">
       <div class="card-body">
         <h6 class="fw-semibold text-muted mb-3"><i class="bi bi-clock-history me-1"></i>Audit Trail</h6>
-        <div style="max-height:300px;overflow-y:auto;">
+        <div style="max-height:280px;overflow-y:auto;">
           {% for log in audit_trail %}
           <div class="d-flex gap-2 mb-2 pb-2 border-bottom">
             <div class="mt-1">
               <i class="bi bi-circle-fill text-primary" style="font-size:.4rem;"></i>
             </div>
             <div>
-              <div class="small fw-semibold">{{ log.actor_name }} <span class="fw-normal text-muted">{{ log.action }}</span></div>
+              <div class="small fw-semibold">
+                {{ log.actor_name }}
+                <span class="fw-normal text-muted">{{ log.action | replace('_',' ') }}</span>
+              </div>
               <div class="text-muted" style="font-size:.72rem;">{{ log.timestamp[:16] | replace('T',' ') }}</div>
               {% if log.details %}
               <div class="text-muted" style="font-size:.72rem;">
-                {% for k, v in log.details.items() %}{{ k }}: {{ v }} {% endfor %}
+                {% for k, v in log.details.items() %}{{ k }}: {{ v }}  {% endfor %}
               </div>
               {% endif %}
             </div>
@@ -322,23 +392,35 @@
   </div>
 </div>
 
-<!-- Delete Modal -->
+<!-- Delete → Recycle Bin Modal -->
 {% if current_user.is_admin() %}
 <div class="modal fade" id="deleteModal" tabindex="-1">
   <div class="modal-dialog">
     <form method="POST" action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}" class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete Invoice</h5>
+        <h5 class="modal-title"><i class="bi bi-trash me-2 text-warning"></i>Move to Recycle Bin</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="alert alert-danger small">
-          This action is irreversible. The invoice record and all audit history will be permanently deleted.
+        <p class="text-muted small mb-3">
+          The invoice will be moved to the <strong>Recycle Bin</strong> and can be restored
+          before the retention period expires. After that, it is permanently deleted automatically.
+        </p>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Retention Period</label>
+          <select name="retention_days" class="form-select form-select-sm">
+            <option value="7">7 days</option>
+            <option value="15">15 days</option>
+            <option value="30" selected>30 days (recommended)</option>
+          </select>
+          <div class="form-text">Invoice will be auto-purged after this period.</div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-danger btn-sm">Delete Permanently</button>
+        <button type="submit" class="btn btn-warning btn-sm">
+          <i class="bi bi-trash me-1"></i>Move to Recycle Bin
+        </button>
       </div>
     </form>
   </div>

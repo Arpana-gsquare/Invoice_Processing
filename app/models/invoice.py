@@ -1,82 +1,34 @@
 """
-Invoice Model – MongoDB schema design with nested line items.
+Invoice Model - MongoDB schema with nested line items, status history, and soft delete.
 
-Schema (stored as BSON document):
-{
-  _id: ObjectId,
-  invoice_number: str,
-  vendor_name: str,
-  vendor_address: str,
-  vendor_email: str,
-  bill_to: str,
-  invoice_date: datetime,
-  due_date: datetime,
-  total_amount: float,
-  subtotal: float,
-  tax_amount: float,
-  currency: str,           # ISO 4217 (e.g. "USD")
-  currency_symbol: str,
-  line_items: [
-    {
-      description: str,
-      quantity: float,
-      unit_price: float,
-      amount: float,
-      category: str,       # utilities | travel | office_supplies | ...
-    }
-  ],
-  extraction_confidence: float,   # 0-1
-  raw_text: str,
-  file_path: str,
-  original_filename: str,
-  file_type: str,          # pdf | jpg | png
-  upload_timestamp: datetime,
-  uploaded_by: str,        # user_id
-  status: str,             # pending | approved | rejected
-  risk_flag: str,          # SAFE | MODERATE | HIGH RISK | DUPLICATE
-  risk_score: int,         # 0-100
-  risk_reasons: [str],
-  duplicate_of: str | None,
-  category: str,           # inferred from line items
-  attachments: [str],      # list of file paths
-  notes: str,
-  payment_terms: str,
-  po_number: str,
-  approved_by: str | None,
-  approved_at: datetime | None,
-  rejected_by: str | None,
-  rejected_at: datetime | None,
-  rejection_reason: str,
-}
+New fields vs original:
+  status_history  - embedded array of every status change
+  is_deleted      - soft delete flag
+  deleted_at      - when moved to recycle bin
+  deleted_by      - user_id who deleted
+  deleted_by_name - display name
+  retention_days  - how long to keep in bin
+  permanent_delete_at - TTL index fires on this field
 """
 from __future__ import annotations
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 from bson import ObjectId
 from ..extensions import get_db
 
-
-# ── Invoice Categories ─────────────────────────────────────────────────────
 CATEGORIES = (
     "utilities", "travel", "office_supplies", "software",
     "hardware", "professional_services", "marketing", "logistics",
     "maintenance", "other",
 )
-
-# ── Workflow Statuses ──────────────────────────────────────────────────────
 STATUSES = ("pending", "approved", "rejected")
-
-# ── Risk Flags ─────────────────────────────────────────────────────────────
 RISK_FLAGS = ("SAFE", "MODERATE", "HIGH RISK", "DUPLICATE")
 
 
 class Invoice:
-    """CRUD operations for invoices collection."""
-
     def __init__(self, doc: dict):
         self._doc = doc
 
-    # ── Properties ─────────────────────────────────────────────────────────
     @property
     def id(self) -> str:
         return str(self._doc["_id"])
@@ -102,11 +54,20 @@ class Invoice:
         return self._doc.get("status", "pending")
 
     @property
-    def days_since_invoice(self) -> int | None:
+    def is_deleted(self) -> bool:
+        return bool(self._doc.get("is_deleted", False))
+
+    @property
+    def status_history(self) -> list:
+        return self._doc.get("status_history", [])
+
+    @property
+    def days_since_invoice(self):
         inv_date = self._doc.get("invoice_date")
         if inv_date:
-            delta = datetime.now(timezone.utc) - inv_date.replace(tzinfo=timezone.utc) \
-                if inv_date.tzinfo is None else datetime.now(timezone.utc) - inv_date
+            if inv_date.tzinfo is None:
+                inv_date = inv_date.replace(tzinfo=timezone.utc)
+            delta = datetime.now(timezone.utc) - inv_date
             return delta.days
         return None
 
@@ -118,62 +79,79 @@ class Invoice:
             return due_aware < datetime.now(timezone.utc) and self.status == "pending"
         return False
 
-    # ── CRUD ───────────────────────────────────────────────────────────────
+    # ── CRUD ──────────────────────────────────────────────────────────────
     @classmethod
     def create(cls, data: dict) -> "Invoice":
         db = get_db()
         data.setdefault("upload_timestamp", datetime.now(timezone.utc))
         data.setdefault("status", "pending")
+        data.setdefault("status_history", [])
         data.setdefault("risk_flag", "SAFE")
         data.setdefault("risk_score", 0)
         data.setdefault("risk_reasons", [])
         data.setdefault("attachments", [])
+        data.setdefault("is_deleted", False)
+        data.setdefault("deleted_at", None)
+        data.setdefault("deleted_by", None)
+        data.setdefault("deleted_by_name", None)
+        data.setdefault("retention_days", None)
+        data.setdefault("permanent_delete_at", None)
         result = db.invoices.insert_one(data)
         data["_id"] = result.inserted_id
         return cls(data)
 
     @classmethod
-    def get_by_id(cls, invoice_id: str) -> "Invoice | None":
+    def get_by_id(cls, invoice_id: str, include_deleted: bool = False):
         try:
-            doc = get_db().invoices.find_one({"_id": ObjectId(invoice_id)})
+            query = {"_id": ObjectId(invoice_id)}
+            if not include_deleted:
+                query["is_deleted"] = {"$ne": True}
+            doc = get_db().invoices.find_one(query)
         except Exception:
             return None
         return cls(doc) if doc else None
 
     @classmethod
-    def get_by_number(cls, invoice_number: str) -> list["Invoice"]:
-        docs = get_db().invoices.find({"invoice_number": invoice_number})
+    def get_by_number(cls, invoice_number: str) -> list:
+        docs = get_db().invoices.find(
+            {"invoice_number": invoice_number, "is_deleted": {"$ne": True}}
+        )
         return [cls(d) for d in docs]
 
     @classmethod
-    def list_all(
-        cls,
-        filters: dict | None = None,
-        sort_by: str = "upload_timestamp",
-        sort_dir: int = -1,
-        page: int = 1,
-        per_page: int = 20,
-    ) -> tuple[list["Invoice"], int]:
+    def list_all(cls, filters=None, sort_by="upload_timestamp",
+                 sort_dir=-1, page=1, per_page=20):
         db = get_db()
-        query = filters or {}
+        query = {**(filters or {}), "is_deleted": {"$ne": True}}
         total = db.invoices.count_documents(query)
         skip = (page - 1) * per_page
         docs = db.invoices.find(query).sort(sort_by, sort_dir).skip(skip).limit(per_page)
         return [cls(d) for d in docs], total
 
     @classmethod
-    def vendor_history(cls, vendor_name: str) -> list[dict]:
-        """Return all invoices for a vendor (for risk scoring)."""
+    def list_deleted(cls, page=1, per_page=20):
+        db = get_db()
+        query = {"is_deleted": True}
+        total = db.invoices.count_documents(query)
+        skip = (page - 1) * per_page
+        docs = db.invoices.find(query).sort("deleted_at", -1).skip(skip).limit(per_page)
+        return [cls(d) for d in docs], total
+
+    @classmethod
+    def vendor_history(cls, vendor_name: str) -> list:
         docs = get_db().invoices.find(
-            {"vendor_name": {"$regex": vendor_name, "$options": "i"}},
+            {
+                "vendor_name": {"$regex": vendor_name, "$options": "i"},
+                "is_deleted": {"$ne": True},
+            },
             {"total_amount": 1, "invoice_date": 1, "status": 1, "due_date": 1},
         )
         return list(docs)
 
     @classmethod
     def amount_statistics(cls) -> dict:
-        """Return global mean/std of invoice amounts for anomaly detection."""
         pipeline = [
+            {"$match": {"is_deleted": {"$ne": True}}},
             {"$group": {
                 "_id": None,
                 "mean": {"$avg": "$total_amount"},
@@ -199,26 +177,74 @@ class Invoice:
         self._doc.update(updates)
         return self
 
-    def delete(self):
-        get_db().invoices.delete_one({"_id": self._doc["_id"]})
-
     def add_attachment(self, file_path: str):
         get_db().invoices.update_one(
             {"_id": self._doc["_id"]},
             {"$push": {"attachments": file_path}},
         )
 
+    # ── Status History ─────────────────────────────────────────────────────
+    def push_status_history(self, from_status, to_status,
+                            changed_by, changed_by_name, reason=""):
+        entry = {
+            "from_status": from_status,
+            "to_status": to_status,
+            "changed_by": changed_by,
+            "changed_by_name": changed_by_name,
+            "reason": reason,
+            "timestamp": datetime.now(timezone.utc),
+        }
+        get_db().invoices.update_one(
+            {"_id": self._doc["_id"]},
+            {"$push": {"status_history": entry}},
+        )
+        self._doc.setdefault("status_history", []).append(entry)
+
+    # ── Soft Delete / Restore / Hard Delete ────────────────────────────────
+    def soft_delete(self, deleted_by: str, deleted_by_name: str, retention_days: int = 30):
+        now = datetime.now(timezone.utc)
+        updates = {
+            "is_deleted": True,
+            "deleted_at": now,
+            "deleted_by": deleted_by,
+            "deleted_by_name": deleted_by_name,
+            "retention_days": retention_days,
+            "permanent_delete_at": now + timedelta(days=retention_days),
+        }
+        get_db().invoices.update_one({"_id": self._doc["_id"]}, {"$set": updates})
+        self._doc.update(updates)
+
+    def restore(self):
+        updates = {
+            "is_deleted": False,
+            "deleted_at": None,
+            "deleted_by": None,
+            "deleted_by_name": None,
+            "retention_days": None,
+            "permanent_delete_at": None,
+        }
+        get_db().invoices.update_one({"_id": self._doc["_id"]}, {"$set": updates})
+        self._doc.update(updates)
+
+    def hard_delete(self):
+        get_db().invoices.delete_one({"_id": self._doc["_id"]})
+
+    def delete(self):
+        self.hard_delete()
+
     # ── Serialisation ──────────────────────────────────────────────────────
-    def to_dict(self, full: bool = True) -> dict[str, Any]:
+    def to_dict(self, full: bool = True) -> dict:
         doc = self._doc.copy()
         doc["_id"] = str(doc["_id"])
-        # Serialise datetimes
         for field in ("invoice_date", "due_date", "upload_timestamp",
-                      "approved_at", "rejected_at"):
+                      "approved_at", "rejected_at", "deleted_at", "permanent_delete_at"):
             if doc.get(field) and hasattr(doc[field], "isoformat"):
                 doc[field] = doc[field].isoformat()
+        # Serialise timestamps inside status_history
+        for entry in doc.get("status_history", []):
+            if entry.get("timestamp") and hasattr(entry["timestamp"], "isoformat"):
+                entry["timestamp"] = entry["timestamp"].isoformat()
         if not full:
-            # Strip heavy fields for list views
             doc.pop("raw_text", None)
             doc.pop("line_items", None)
         doc["days_since_invoice"] = self.days_since_invoice

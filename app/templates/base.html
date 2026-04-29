@@ -133,6 +133,12 @@
         <i class="bi bi-people"></i> Users
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if 'recycle.' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('recycle.index') }}">
+        <i class="bi bi-trash"></i> Recycle Bin
+      </a>
+    </li>
     {% endif %}
   </ul>
 

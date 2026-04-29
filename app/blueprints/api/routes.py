@@ -1,5 +1,5 @@
 """
-REST API Blueprint – JSON endpoints for programmatic access.
+REST API Blueprint - JSON endpoints for programmatic access.
 All responses follow:  { "success": bool, "data": {...} | [...], "error": str }
 """
 from __future__ import annotations
@@ -16,6 +16,10 @@ from ...models.invoice import Invoice
 from ...models.audit import AuditLog
 from ...services.gemini_service import gemini_service
 from ...services.fraud_detection import analyse_invoice
+from ...services.workflow_service import transition_status, WorkflowError
+from ...services.recycle_service import (
+    soft_delete, restore, permanent_delete, RETENTION_OPTIONS, DEFAULT_RETENTION
+)
 from ...utils.helpers import build_filters, paginate
 from ...utils.validators import allowed_file, validate_invoice_data
 from ...utils.helpers import save_uploaded_file
@@ -40,7 +44,7 @@ def err(message: str, status: int = 400):
     return jsonify({"success": False, "error": message}), status
 
 
-# ── Invoices ───────────────────────────────────────────────────────────────
+# -- Invoices -----------------------------------------------------------------
 @api_bp.route("/invoices", methods=["GET"])
 @api_login_required
 def get_invoices():
@@ -87,33 +91,99 @@ def update_invoice(invoice_id: str):
 @api_bp.route("/invoices/<invoice_id>/status", methods=["POST"])
 @api_login_required
 def change_status(invoice_id: str):
-    if not current_user.can_approve():
-        return err("Insufficient permissions", 403)
+    """
+    Unified status transition endpoint.
+    Body: { "status": "approved"|"rejected"|"pending", "reason": "..." }
+    """
     invoice = Invoice.get_by_id(invoice_id)
     if not invoice:
         return err("Invoice not found", 404)
 
     body = request.get_json(silent=True) or {}
-    new_status = body.get("status")
+    new_status = body.get("status", "").strip()
+    reason = body.get("reason", "")
+
     if new_status not in ("approved", "rejected", "pending"):
-        return err("Invalid status")
+        return err("Invalid status. Must be one of: approved, rejected, pending")
 
-    updates = {"status": new_status}
-    if new_status == "approved":
-        updates["approved_by"] = current_user.id
-        updates["approved_at"] = datetime.now(timezone.utc)
-    elif new_status == "rejected":
-        updates["rejected_by"] = current_user.id
-        updates["rejected_at"] = datetime.now(timezone.utc)
-        updates["rejection_reason"] = body.get("reason", "")
+    if new_status in ("approved", "rejected") and not current_user.can_approve():
+        return err("Insufficient permissions to approve/reject", 403)
 
-    invoice.update(updates)
-    AuditLog.log(invoice_id=invoice_id, action=new_status,
-                 actor_id=current_user.id, actor_name=current_user.name)
-    return ok({"status": new_status})
+    try:
+        transition_status(invoice, new_status, current_user.id, current_user.name, reason)
+    except WorkflowError as e:
+        return err(str(e), 422)
+
+    return ok({"status": new_status, "invoice_id": invoice_id})
 
 
-# ── Upload via API ─────────────────────────────────────────────────────────
+# -- Recycle Bin API ----------------------------------------------------------
+@api_bp.route("/invoices/<invoice_id>/delete", methods=["DELETE"])
+@api_login_required
+def api_soft_delete(invoice_id: str):
+    """Soft-delete (move to recycle bin). Admin only."""
+    if not current_user.is_admin():
+        return err("Admin access required", 403)
+    invoice = Invoice.get_by_id(invoice_id)
+    if not invoice:
+        return err("Invoice not found", 404)
+    body = request.get_json(silent=True) or {}
+    retention = int(body.get("retention_days", DEFAULT_RETENTION))
+    try:
+        soft_delete(invoice, current_user.id, current_user.name, retention)
+    except ValueError as e:
+        return err(str(e), 422)
+    return ok({"moved_to_recycle_bin": True, "retention_days": retention})
+
+
+@api_bp.route("/recycle-bin", methods=["GET"])
+@api_login_required
+def api_recycle_bin():
+    """List all soft-deleted invoices."""
+    if not current_user.is_admin():
+        return err("Admin access required", 403)
+    page = int(request.args.get("page", 1))
+    per_page = min(int(request.args.get("per_page", 20)), 100)
+    invoices, total = Invoice.list_deleted(page=page, per_page=per_page)
+    return ok({
+        "invoices": [inv.to_dict(full=False) for inv in invoices],
+        "pagination": paginate(total, page, per_page),
+    })
+
+
+@api_bp.route("/recycle-bin/<invoice_id>/restore", methods=["POST"])
+@api_login_required
+def api_restore(invoice_id: str):
+    """Restore an invoice from the recycle bin."""
+    if not current_user.is_admin():
+        return err("Admin access required", 403)
+    invoice = Invoice.get_by_id(invoice_id, include_deleted=True)
+    if not invoice or not invoice.is_deleted:
+        return err("Invoice not found in recycle bin", 404)
+    try:
+        restore(invoice, current_user.id, current_user.name)
+    except ValueError as e:
+        return err(str(e), 422)
+    return ok({"restored": True, "invoice_id": invoice_id})
+
+
+@api_bp.route("/recycle-bin/<invoice_id>", methods=["DELETE"])
+@api_login_required
+def api_permanent_delete(invoice_id: str):
+    """Permanently destroy an invoice from the recycle bin."""
+    if not current_user.is_admin():
+        return err("Admin access required", 403)
+    invoice = Invoice.get_by_id(invoice_id, include_deleted=True)
+    if not invoice or not invoice.is_deleted:
+        return err("Invoice not found in recycle bin", 404)
+    try:
+        permanent_delete(invoice, current_user.id, current_user.name)
+    except ValueError as e:
+        return err(str(e), 422)
+    return ok({"permanently_deleted": True})
+
+
+# -- Upload via API -----------------------------------------------------------
 @api_bp.route("/invoices/upload", methods=["POST"])
 @api_login_required
 def api_upload():
@@ -139,72 +209,72 @@ def api_upload():
         risk = analyse_invoice(doc)
         doc.update(risk)
         invoice = Invoice.create(doc)
-        AuditLog.log(invoice_id=invoice.id, action="upload",
-                     actor_id=current_user.id, actor_name=current_user.name,
-                     details={"filename": original_name})
-        return ok(invoice.to_dict(), status=201)
+        AuditLog.log(
+            invoice_id=invoice.id,
+            action="upload",
+            actor_id=current_user.id,
+            actor_name=current_user.name,
+            details={
+                "filename": original_name,
+                "confidence": extracted.get("extraction_confidence"),
+                "risk_flag": risk["risk_flag"],
+            },
+        )
+        return ok(invoice.to_dict(), 201)
     except Exception as exc:
         return err(str(exc), 500)
 
 
-# ── Stats / Dashboard ─────────────────────────────────────────────────────
-@api_bp.route("/stats", methods=["GET"])
+# -- Analytics ----------------------------------------------------------------
+@api_bp.route("/analytics/summary", methods=["GET"])
 @api_login_required
-def stats():
+def analytics_summary():
     db = get_db()
     pipeline = [
+        {"$match": {"is_deleted": {"$ne": True}}},
         {"$group": {
-            "_id": "$risk_flag",
+            "_id": "$status",
             "count": {"$sum": 1},
             "total_amount": {"$sum": "$total_amount"},
-        }}
+        }},
     ]
-    risk_breakdown = {d["_id"]: {"count": d["count"], "total": d["total_amount"]}
-                      for d in db.invoices.aggregate(pipeline)}
+    status_breakdown = {
+        r["_id"]: {"count": r["count"], "total_amount": r["total_amount"]}
+        for r in db.invoices.aggregate(pipeline)
+    }
 
-    status_pipeline = [
-        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+    risk_pipeline = [
+        {"$match": {"is_deleted": {"$ne": True}}},
+        {"$group": {"_id": "$risk_flag", "count": {"$sum": 1}}},
     ]
-    status_breakdown = {d["_id"]: d["count"]
-                        for d in db.invoices.aggregate(status_pipeline)}
+    risk_breakdown = {r["_id"]: r["count"] for r in db.invoices.aggregate(risk_pipeline)}
+
+    stats = Invoice.amount_statistics()
 
     return ok({
-        "total_invoices": db.invoices.count_documents({}),
-        "risk_breakdown": risk_breakdown,
         "status_breakdown": status_breakdown,
-        "overdue": db.invoices.count_documents({
-            "status": "pending",
-            "due_date": {"$lt": datetime.now(timezone.utc)},
-        }),
+        "risk_breakdown": risk_breakdown,
+        "amount_stats": stats,
     })
 
 
-# ── Audit Trail ───────────────────────────────────────────────────────────
+@api_bp.route("/analytics/vendor/<vendor_name>", methods=["GET"])
+@api_login_required
+def vendor_analytics(vendor_name: str):
+    history = Invoice.vendor_history(vendor_name)
+    serialised = []
+    for doc in history:
+        doc["_id"] = str(doc["_id"])
+        for field in ("invoice_date", "due_date"):
+            if doc.get(field) and hasattr(doc[field], "isoformat"):
+                doc[field] = doc[field].isoformat()
+        serialised.append(doc)
+    return ok({"vendor": vendor_name, "history": serialised})
+
+
+# -- Audit Trail --------------------------------------------------------------
 @api_bp.route("/invoices/<invoice_id>/audit", methods=["GET"])
 @api_login_required
-def audit_trail(invoice_id: str):
-    return ok(AuditLog.get_for_invoice(invoice_id))
-
-
-# ── Vendors ───────────────────────────────────────────────────────────────
-@api_bp.route("/vendors", methods=["GET"])
-@api_login_required
-def vendors():
-    db = get_db()
-    pipeline = [
-        {"$group": {
-            "_id": "$vendor_name",
-            "invoice_count": {"$sum": 1},
-            "total_amount": {"$sum": "$total_amount"},
-            "risk_flags": {"$push": "$risk_flag"},
-        }},
-        {"$sort": {"invoice_count": -1}},
-        {"$limit": 50},
-    ]
-    result = list(db.invoices.aggregate(pipeline))
-    for v in result:
-        from collections import Counter
-        flag_counts = Counter(v["risk_flags"])
-        v["risk_breakdown"] = dict(flag_counts)
-        del v["risk_flags"]
-    return ok(result)
+def get_audit_trail(invoice_id: str):
+    logs = AuditLog.get_for_invoice(invoice_id)
+    return ok({"audit_trail": logs})

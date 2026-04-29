@@ -1,5 +1,5 @@
 """
-Invoices Blueprint – Upload, List, Detail, Approve/Reject, Export, Attachments.
+Invoices Blueprint - Upload, List, Detail, Approve/Reject, Export, Attachments.
 """
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from ...models.audit import AuditLog
 from ...services.gemini_service import gemini_service
 from ...services.fraud_detection import analyse_invoice
 from ...services.export_service import export_csv, export_excel
+from ...services.workflow_service import transition_status, WorkflowError
+from ...services.recycle_service import soft_delete, RETENTION_OPTIONS, DEFAULT_RETENTION
 from ...utils.validators import allowed_file, validate_invoice_data
 from ...utils.helpers import save_uploaded_file, paginate, build_filters
 
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 invoices_bp = Blueprint("invoices", __name__)
 
 
-# ── List & Filter ──────────────────────────────────────────────────────────
+# -- List & Filter ------------------------------------------------------------
 @invoices_bp.route("/")
 @login_required
 def list_invoices():
@@ -40,7 +42,7 @@ def list_invoices():
     )
 
 
-# ── Upload ─────────────────────────────────────────────────────────────────
+# -- Upload -------------------------------------------------------------------
 @invoices_bp.route("/upload", methods=["GET", "POST"])
 @login_required
 def upload():
@@ -57,7 +59,7 @@ def upload():
         if file.filename == "":
             continue
         if not allowed_file(file.filename):
-            flash(f"'{file.filename}' – unsupported format. Use PDF, JPG, or PNG.", "warning")
+            flash(f"'{file.filename}' - unsupported format. Use PDF, JPG, or PNG.", "warning")
             continue
         result = _process_single_upload(file)
         results.append(result)
@@ -80,13 +82,9 @@ def _process_single_upload(file) -> dict:
         ext = original_name.rsplit(".", 1)[-1].lower()
         logger.info("Processing upload: %s", original_name)
 
-        # AI Extraction
         extracted = gemini_service.extract_invoice(file_path, ext)
-
-        # Validation & Normalisation
         validate_invoice_data(extracted)
 
-        # Assemble the document
         doc = {
             **extracted,
             "file_path": file_path,
@@ -96,14 +94,11 @@ def _process_single_upload(file) -> dict:
             "uploaded_by": current_user.id,
         }
 
-        # Risk Analysis
         risk = analyse_invoice(doc)
         doc.update(risk)
 
-        # Persist
         invoice = Invoice.create(doc)
 
-        # Audit
         AuditLog.log(
             invoice_id=invoice.id,
             action="upload",
@@ -123,7 +118,7 @@ def _process_single_upload(file) -> dict:
         return {"success": False, "filename": file.filename, "error": str(exc)}
 
 
-# ── Detail View ────────────────────────────────────────────────────────────
+# -- Detail View --------------------------------------------------------------
 @invoices_bp.route("/<invoice_id>")
 @login_required
 def detail(invoice_id: str):
@@ -140,59 +135,76 @@ def detail(invoice_id: str):
     )
 
 
-# ── Approve / Reject Workflow ──────────────────────────────────────────────
-@invoices_bp.route("/<invoice_id>/approve", methods=["POST"])
+# -- Unified Status Transition ------------------------------------------------
+@invoices_bp.route("/<invoice_id>/transition", methods=["POST"])
 @login_required
-def approve(invoice_id: str):
-    if not current_user.can_approve():
-        flash("You do not have permission to approve invoices.", "danger")
-        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
-
+def transition(invoice_id: str):
+    """Single endpoint for all status changes.
+    Form fields: new_status, reason (optional)
+    """
     invoice = Invoice.get_by_id(invoice_id)
     if not invoice:
         flash("Invoice not found.", "danger")
         return redirect(url_for("invoices.list_invoices"))
 
-    invoice.update({
-        "status": "approved",
-        "approved_by": current_user.id,
-        "approved_at": datetime.now(timezone.utc),
-    })
-    AuditLog.log(invoice_id=invoice_id, action="approve",
-                 actor_id=current_user.id, actor_name=current_user.name)
-    flash("Invoice approved.", "success")
+    new_status = request.form.get("new_status", "").strip()
+    reason = request.form.get("reason", "").strip()
+
+    if new_status in ("approved", "rejected") and not current_user.can_approve():
+        flash("You do not have permission to approve or reject invoices.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    try:
+        transition_status(
+            invoice=invoice,
+            new_status=new_status,
+            actor_id=current_user.id,
+            actor_name=current_user.name,
+            reason=reason,
+        )
+        labels = {
+            "approved": ("Invoice approved.", "success"),
+            "rejected": ("Invoice rejected.", "warning"),
+            "pending":  ("Invoice reopened and set back to pending.", "info"),
+        }
+        msg, cat = labels.get(new_status, ("Status updated.", "info"))
+        flash(msg, cat)
+    except WorkflowError as e:
+        flash(str(e), "danger")
+
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+
+# -- Legacy aliases -----------------------------------------------------------
+@invoices_bp.route("/<invoice_id>/approve", methods=["POST"])
+@login_required
+def approve(invoice_id: str):
+    return _quick_transition(invoice_id, "approved")
 
 
 @invoices_bp.route("/<invoice_id>/reject", methods=["POST"])
 @login_required
 def reject(invoice_id: str):
-    if not current_user.can_approve():
-        flash("You do not have permission to reject invoices.", "danger")
-        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+    return _quick_transition(invoice_id, "rejected", reason=request.form.get("reason", ""))
 
+
+def _quick_transition(invoice_id, new_status, reason=""):
     invoice = Invoice.get_by_id(invoice_id)
     if not invoice:
         flash("Invoice not found.", "danger")
         return redirect(url_for("invoices.list_invoices"))
-
-    reason = request.form.get("reason", "")
-    invoice.update({
-        "status": "rejected",
-        "rejected_by": current_user.id,
-        "rejected_at": datetime.now(timezone.utc),
-        "rejection_reason": reason,
-    })
-    AuditLog.log(
-        invoice_id=invoice_id, action="reject",
-        actor_id=current_user.id, actor_name=current_user.name,
-        details={"reason": reason},
-    )
-    flash("Invoice rejected.", "warning")
+    if not current_user.can_approve():
+        flash("Permission denied.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+    try:
+        transition_status(invoice, new_status, current_user.id, current_user.name, reason)
+        flash("Status updated to %s." % new_status, "success" if new_status == "approved" else "warning")
+    except WorkflowError as e:
+        flash(str(e), "danger")
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
 
-# ── Re-analyse ─────────────────────────────────────────────────────────────
+# -- Re-analyse ---------------------------------------------------------------
 @invoices_bp.route("/<invoice_id>/reanalyse", methods=["POST"])
 @login_required
 def reanalyse(invoice_id: str):
@@ -211,7 +223,7 @@ def reanalyse(invoice_id: str):
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
 
-# ── Attachment Upload ──────────────────────────────────────────────────────
+# -- Attachment Upload --------------------------------------------------------
 @invoices_bp.route("/<invoice_id>/attach", methods=["POST"])
 @login_required
 def attach(invoice_id: str):
@@ -234,12 +246,12 @@ def attach(invoice_id: str):
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
 
-# ── Delete ─────────────────────────────────────────────────────────────────
+# -- Soft Delete -> Recycle Bin -----------------------------------------------
 @invoices_bp.route("/<invoice_id>/delete", methods=["POST"])
 @login_required
 def delete(invoice_id: str):
     if not current_user.is_admin():
-        flash("Only admins can delete invoices.", "danger")
+        flash("Only admins can move invoices to the recycle bin.", "danger")
         return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
     invoice = Invoice.get_by_id(invoice_id)
@@ -247,15 +259,26 @@ def delete(invoice_id: str):
         flash("Invoice not found.", "danger")
         return redirect(url_for("invoices.list_invoices"))
 
-    AuditLog.log(invoice_id=invoice_id, action="delete",
-                 actor_id=current_user.id, actor_name=current_user.name,
-                 details={"invoice_number": invoice.invoice_number})
-    invoice.delete()
-    flash("Invoice deleted.", "warning")
+    try:
+        retention = int(request.form.get("retention_days", DEFAULT_RETENTION))
+    except (TypeError, ValueError):
+        retention = DEFAULT_RETENTION
+
+    soft_delete(
+        invoice=invoice,
+        actor_id=current_user.id,
+        actor_name=current_user.name,
+        retention_days=retention,
+    )
+    flash(
+        "Invoice moved to Recycle Bin. "
+        "It will be permanently deleted after %d days." % retention,
+        "warning",
+    )
     return redirect(url_for("invoices.list_invoices"))
 
 
-# ── Export ─────────────────────────────────────────────────────────────────
+# -- Export -------------------------------------------------------------------
 @invoices_bp.route("/export/<fmt>")
 @login_required
 def export(fmt: str):
@@ -272,14 +295,14 @@ def export(fmt: str):
         buf = export_csv(invoices)
         return send_file(
             buf, mimetype="text/csv",
-            as_attachment=True, download_name=f"invoices_{timestamp}.csv",
+            as_attachment=True, download_name="invoices_%s.csv" % timestamp,
         )
     elif fmt == "excel":
         buf = export_excel(invoices)
         return send_file(
             buf,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True, download_name=f"invoices_{timestamp}.xlsx",
+            as_attachment=True, download_name="invoices_%s.xlsx" % timestamp,
         )
     else:
         flash("Unsupported export format.", "danger")

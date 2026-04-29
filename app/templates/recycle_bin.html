@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Recycle Bin – {{ APP_NAME }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+  <li class="breadcrumb-item active">Recycle Bin</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h5 class="fw-bold mb-1"><i class="bi bi-trash me-2 text-warning"></i>Recycle Bin
+      <span class="badge bg-warning text-dark ms-1" style="font-size:.75rem;">{{ pagination.total }}</span>
+    </h5>
+    <p class="text-muted small mb-0">Soft-deleted invoices. Restore or permanently delete them here.</p>
+  </div>
+  {% if pagination.total > 0 %}
+  <form method="POST" action="{{ url_for('recycle.purge_all') }}"
+        onsubmit="return confirm('Permanently delete ALL {{ pagination.total }} invoice(s) in the bin? This cannot be undone.')">
+    <button type="submit" class="btn btn-danger btn-sm">
+      <i class="bi bi-fire me-1"></i>Empty Recycle Bin
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+<!-- Info banner -->
+<div class="alert alert-info d-flex align-items-start gap-2 py-2 mb-3">
+  <i class="bi bi-info-circle mt-1"></i>
+  <div class="small">
+    <strong>Auto-cleanup:</strong> Invoices are automatically purged by MongoDB's TTL index
+    when their retention period expires. You can also restore or permanently delete them manually.
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Vendor</th>
+          <th>Amount</th>
+          <th>Deleted By</th>
+          <th>Deleted At</th>
+          <th>Retention</th>
+          <th>Expires In</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        {% set d = inv.to_dict(full=False) %}
+        {% set deleted_at = d.get('deleted_at','') %}
+        {% set retention = d.get('retention_days', 30) %}
+        <tr>
+          <td class="fw-semibold text-muted">{{ inv.invoice_number or '—' }}</td>
+          <td>{{ inv.vendor_name or '—' }}</td>
+          <td class="fw-semibold">
+            {{ d.get('currency_symbol','$') }}{{ "{:,.2f}".format(inv.total_amount) }}
+          </td>
+          <td class="small text-muted">{{ d.get('deleted_by_name','—') }}</td>
+          <td class="small text-muted">
+            {{ deleted_at[:10] if deleted_at else '—' }}
+          </td>
+          <td>
+            <span class="badge bg-light text-muted border">{{ retention }} days</span>
+          </td>
+          <td>
+            <span id="countdown-{{ inv.id }}"
+                  data-expires="{{ d.get('permanent_delete_at','') }}"
+                  class="small fw-semibold text-danger">
+              —
+            </span>
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <!-- Restore -->
+              <form method="POST"
+                    action="{{ url_for('recycle.restore_invoice', invoice_id=inv.id) }}"
+                    onsubmit="return confirm('Restore this invoice?')">
+                <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" title="Restore">
+                  <i class="bi bi-arrow-counterclockwise"></i> Restore
+                </button>
+              </form>
+              <!-- Permanent Delete -->
+              <form method="POST"
+                    action="{{ url_for('recycle.purge', invoice_id=inv.id) }}"
+                    onsubmit="return confirm('Permanently delete this invoice? This cannot be undone.')">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete forever">
+                  <i class="bi bi-trash-fill"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center py-5">
+            <i class="bi bi-trash" style="font-size:2.5rem;color:#CBD5E1;"></i>
+            <p class="text-muted mt-2 mb-0">Recycle Bin is empty.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.total_pages > 1 %}
+  <div class="card-footer d-flex align-items-center justify-content-between py-2">
+    <small class="text-muted">
+      Showing {{ (pagination.page-1)*pagination.per_page + 1 }}–
+      {{ [pagination.page*pagination.per_page, pagination.total] | min }}
+      of {{ pagination.total }}
+    </small>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ pagination.prev_page }}">‹</a>
+        </li>
+        {% endif %}
+        {% for p in range([1,pagination.page-2]|max, [pagination.total_pages+1,pagination.page+3]|min) %}
+        <li class="page-item {% if p==pagination.page %}active{% endif %}">
+          <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ pagination.next_page }}">›</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Live countdown for each invoice's expiry
+function updateCountdowns() {
+  document.querySelectorAll('[id^="countdown-"]').forEach(el => {
+    const expiresRaw = el.dataset.expires;
+    if (!expiresRaw) return;
+    const expires = new Date(expiresRaw);
+    const now = new Date();
+    const diffMs = expires - now;
+    if (diffMs <= 0) {
+      el.textContent = 'Expired';
+      el.className = 'small fw-semibold text-danger';
+      return;
+    }
+    const days = Math.floor(diffMs / 86400000);
+    const hours = Math.floor((diffMs % 86400000) / 3600000);
+    if (days > 0) {
+      el.textContent = days + 'd ' + hours + 'h';
+      el.className = days <= 3
+        ? 'small fw-semibold text-danger'
+        : 'small fw-semibold text-warning';
+    } else {
+      const mins = Math.floor((diffMs % 3600000) / 60000);
+      el.textContent = hours + 'h ' + mins + 'm';
+      el.className = 'small fw-semibold text-danger';
+    }
+  });
+}
+updateCountdowns();
+setInterval(updateCountdowns, 60000);
+</script>
+{% endblock %}
