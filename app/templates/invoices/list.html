@@ -1,4 +1,18 @@
 {% extends "base.html" %}
+{% block extra_css %}
+<style>
+  .po-match-badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .18rem .55rem; border-radius: 20px;
+    font-size: .72rem; font-weight: 600; white-space: nowrap;
+  }
+  .po-matched  { background: #D1FAE5; color: #065F46; }
+  .po-partial  { background: #FEF3C7; color: #92400E; }
+  .po-mismatch { background: #FEE2E2; color: #991B1B; }
+  .po-missing  { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
+  .po-pending  { background: #EFF6FF; color: #1E40AF; border: 1px dashed #BFDBFE; }
+</style>
+{% endblock %}
 {% block title %}Invoices – {{ APP_NAME }}{% endblock %}
 {% block breadcrumb %}
   <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
@@ -99,6 +113,7 @@
           <th>Due Date</th>
           <th>Amount</th>
           <th>Risk</th>
+          <th>PO Match</th>
           <th>Status</th>
           <th>Days</th>
           <th>Actions</th>
@@ -143,6 +158,30 @@
             </span>
           </td>
           <td>
+            {% set po_s = d.get('po_match_status') %}
+            {% if po_s == 'MATCHED' %}
+              <span class="po-match-badge po-matched" title="Invoice matched to a Purchase Order">
+                <i class="bi bi-check-circle-fill"></i> PO Matched
+              </span>
+            {% elif po_s == 'PARTIAL_MATCH' %}
+              <span class="po-match-badge po-partial" title="Partial match — review differences">
+                <i class="bi bi-exclamation-circle-fill"></i> Partial Match
+              </span>
+            {% elif po_s == 'MISMATCH' %}
+              <span class="po-match-badge po-mismatch" title="Invoice conflicts with linked PO">
+                <i class="bi bi-x-circle-fill"></i> PO Mismatch
+              </span>
+            {% elif po_s == 'NO_PO_FOUND' %}
+              <span class="po-match-badge po-missing" title="No Purchase Order found for this invoice">
+                <i class="bi bi-dash-circle"></i> No PO Found
+              </span>
+            {% else %}
+              <span class="po-match-badge po-pending" title="PO matching not yet run">
+                <i class="bi bi-clock"></i> Not Checked
+              </span>
+            {% endif %}
+          </td>
+          <td>
             <span class="status-badge badge-{{ inv.status }}">{{ inv.status }}</span>
           </td>
           <td class="small text-muted text-center">
@@ -167,7 +206,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="10" class="text-center py-5">
+          <td colspan="11" class="text-center py-5">
             <i class="bi bi-inbox" style="font-size:2.5rem;color:#CBD5E1;"></i>
             <p class="text-muted mt-2 mb-1">No invoices found.</p>
             <a href="{{ url_for('invoices.upload') }}" class="btn btn-primary btn-sm">Upload your first invoice</a>
