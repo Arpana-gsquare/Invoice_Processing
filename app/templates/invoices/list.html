@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Invoices – {{ APP_NAME }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+  <li class="breadcrumb-item active">Invoices</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h5 class="fw-bold mb-0"><i class="bi bi-receipt me-2 text-primary"></i>All Invoices
+    <span class="badge bg-light text-muted ms-1" style="font-size:.75rem;">{{ pagination.total }}</span>
+  </h5>
+  <div class="d-flex gap-2">
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-download me-1"></i>Export
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{{ url_for('invoices.export', fmt='csv', **filters) }}">
+          <i class="bi bi-filetype-csv me-2 text-success"></i>Export CSV
+        </a></li>
+        <li><a class="dropdown-item" href="{{ url_for('invoices.export', fmt='excel', **filters) }}">
+          <i class="bi bi-file-earmark-excel me-2 text-success"></i>Export Excel
+        </a></li>
+      </ul>
+    </div>
+    <a href="{{ url_for('invoices.upload') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Upload
+    </a>
+  </div>
+</div>
+
+<!-- ── Filters ──────────────────────────────────────────────────── -->
+<div class="card mb-3">
+  <div class="card-body p-3">
+    <form method="GET" action="{{ url_for('invoices.list_invoices') }}" id="filterForm">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label form-label-sm mb-1">Search</label>
+          <input type="text" name="search" class="form-control form-control-sm"
+                 placeholder="Invoice # or vendor…" value="{{ filters.get('search','') }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm mb-1">Vendor</label>
+          <input type="text" name="vendor" class="form-control form-control-sm"
+                 placeholder="Vendor name" value="{{ filters.get('vendor','') }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm mb-1">Risk Level</label>
+          <select name="risk_flag" class="form-select form-select-sm">
+            <option value="">All Risks</option>
+            {% for flag in ['SAFE','MODERATE','HIGH RISK','DUPLICATE'] %}
+            <option value="{{ flag }}" {% if filters.get('risk_flag')==flag %}selected{% endif %}>{{ flag }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm mb-1">Status</label>
+          <select name="status" class="form-select form-select-sm">
+            <option value="">All Statuses</option>
+            {% for st in ['pending','approved','rejected'] %}
+            <option value="{{ st }}" {% if filters.get('status')==st %}selected{% endif %}>{{ st.title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label form-label-sm mb-1">From</label>
+          <input type="date" name="date_from" class="form-control form-control-sm"
+                 value="{{ filters.get('date_from','') }}">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label form-label-sm mb-1">To</label>
+          <input type="date" name="date_to" class="form-control form-control-sm"
+                 value="{{ filters.get('date_to','') }}">
+        </div>
+        <div class="col-md-1 d-flex gap-1">
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x"></i>
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Table ─────────────────────────────────────────────────────── -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+          <th>Invoice #</th>
+          <th>Vendor</th>
+          <th>Date</th>
+          <th>Due Date</th>
+          <th>Amount</th>
+          <th>Risk</th>
+          <th>Status</th>
+          <th>Days</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        {% set d = inv.to_dict(full=False) %}
+        <tr onclick="rowClick(event, '{{ inv.id }}')" style="cursor:pointer;">
+          <td onclick="event.stopPropagation()">
+            <input type="checkbox" class="row-check" value="{{ inv.id }}">
+          </td>
+          <td>
+            <span class="fw-semibold text-primary">{{ inv.invoice_number or '—' }}</span>
+            {% if inv.is_overdue %}
+            <span class="overdue-indicator ms-1" title="Overdue"></span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="small fw-semibold">{{ inv.vendor_name or '—' }}</div>
+            {% if d.get('category') %}
+            <div class="text-muted" style="font-size:.72rem;">{{ d.category }}</div>
+            {% endif %}
+          </td>
+          <td class="small text-muted">
+            {{ d.get('invoice_date','')[:10] if d.get('invoice_date') else '—' }}
+          </td>
+          <td class="small {% if inv.is_overdue %}text-danger fw-semibold{% else %}text-muted{% endif %}">
+            {{ d.get('due_date','')[:10] if d.get('due_date') else '—' }}
+          </td>
+          <td class="fw-semibold">
+            {{ d.get('currency_symbol','$') }}{{ "{:,.2f}".format(inv.total_amount) }}
+            <div class="text-muted" style="font-size:.72rem;">{{ d.get('currency','') }}</div>
+          </td>
+          <td>
+            <span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">
+              {% if inv.risk_flag == 'SAFE' %}✅
+              {% elif inv.risk_flag == 'MODERATE' %}⚠️
+              {% elif inv.risk_flag == 'HIGH RISK' %}🚨
+              {% else %}🔁{% endif %}
+              {{ inv.risk_flag }}
+            </span>
+          </td>
+          <td>
+            <span class="status-badge badge-{{ inv.status }}">{{ inv.status }}</span>
+          </td>
+          <td class="small text-muted text-center">
+            {% if inv.days_since_invoice is not none %}{{ inv.days_since_invoice }}d{% else %}—{% endif %}
+          </td>
+          <td onclick="event.stopPropagation()">
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('invoices.detail', invoice_id=inv.id) }}"
+                 class="btn btn-sm btn-outline-primary py-0 px-2" title="View">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% if current_user.can_approve() and inv.status == 'pending' %}
+              <form method="POST" action="{{ url_for('invoices.approve', invoice_id=inv.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" title="Approve"
+                        onclick="return confirm('Approve this invoice?')">
+                  <i class="bi bi-check-lg"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="text-center py-5">
+            <i class="bi bi-inbox" style="font-size:2.5rem;color:#CBD5E1;"></i>
+            <p class="text-muted mt-2 mb-1">No invoices found.</p>
+            <a href="{{ url_for('invoices.upload') }}" class="btn btn-primary btn-sm">Upload your first invoice</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Pagination ────────────────────────────────────────────── -->
+  {% if pagination.total_pages > 1 %}
+  <div class="card-footer d-flex align-items-center justify-content-between py-2">
+    <small class="text-muted">
+      Showing {{ (pagination.page-1)*pagination.per_page + 1 }}–
+      {{ [pagination.page*pagination.per_page, pagination.total] | min }}
+      of {{ pagination.total }}
+    </small>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ pagination.prev_page }}&{{ request.query_string.decode().replace('page='+request.args.get('page','1'),'') }}">‹</a>
+        </li>
+        {% endif %}
+        {% for p in range([1, pagination.page-2] | max, [pagination.total_pages+1, pagination.page+3] | min) %}
+        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+          <a class="page-link" href="?page={{ p }}&{{ request.query_string.decode() | replace('page='+request.args.get('page','1'),'') }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ pagination.next_page }}&{{ request.query_string.decode() | replace('page='+request.args.get('page','1'),'') }}">›</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function rowClick(event, invoiceId) {
+  if (event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON' || event.target.closest('form')) return;
+  window.location = '/invoices/' + invoiceId;
+}
+function toggleAll(cb) {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
+}
+</script>
+{% endblock %}

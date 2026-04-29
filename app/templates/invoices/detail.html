@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% block title %}Invoice {{ invoice.invoice_number or invoice.id }} – {{ APP_NAME }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('invoices.list_invoices') }}">Invoices</a></li>
+  <li class="breadcrumb-item active">{{ invoice.invoice_number or invoice.id[:8] }}</li>
+{% endblock %}
+
+{% block content %}
+{% set d = invoice_dict %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h5 class="fw-bold mb-1">
+      Invoice {{ invoice.invoice_number or '—' }}
+      <span class="risk-badge badge-{{ invoice.risk_flag | replace(' ','-') }} ms-2">
+        {% if invoice.risk_flag == 'SAFE' %}✅{% elif invoice.risk_flag == 'MODERATE' %}⚠️{% elif invoice.risk_flag == 'HIGH RISK' %}🚨{% else %}🔁{% endif %}
+        {{ invoice.risk_flag }}
+      </span>
+      <span class="status-badge badge-{{ invoice.status }} ms-1">{{ invoice.status }}</span>
+    </h5>
+    <p class="text-muted small mb-0">Uploaded {{ d.get('upload_timestamp','')[:16] | replace('T',' ') }} · {{ invoice.vendor_name or 'Unknown vendor' }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if current_user.can_approve() and invoice.status == 'pending' %}
+    <form method="POST" action="{{ url_for('invoices.approve', invoice_id=invoice.id) }}">
+      <button type="submit" class="btn btn-success btn-sm">
+        <i class="bi bi-check-lg me-1"></i>Approve
+      </button>
+    </form>
+    <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">
+      <i class="bi bi-x-lg me-1"></i>Reject
+    </button>
+    {% endif %}
+    <form method="POST" action="{{ url_for('invoices.reanalyse', invoice_id=invoice.id) }}">
+      <button type="submit" class="btn btn-outline-warning btn-sm">
+        <i class="bi bi-shield-check me-1"></i>Re-analyse Risk
+      </button>
+    </form>
+    {% if current_user.is_admin() %}
+    <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">
+      <i class="bi bi-trash me-1"></i>Delete
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- ── Left Column ──────────────────────────────────────────── -->
+  <div class="col-md-8">
+
+    <!-- Invoice Header Info -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="small text-muted fw-semibold mb-3">VENDOR</div>
+            <div class="fw-bold fs-6">{{ invoice.vendor_name or '—' }}</div>
+            <div class="text-muted small">{{ d.get('vendor_address') or '' }}</div>
+            {% if d.get('vendor_email') %}<div class="text-muted small">{{ d.vendor_email }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <div class="small text-muted fw-semibold mb-3">BILL TO</div>
+            <div class="text-muted small" style="white-space:pre-line;">{{ d.get('bill_to') or '—' }}</div>
+          </div>
+        </div>
+        <hr class="my-3">
+        <div class="row g-3 text-center">
+          <div class="col-3">
+            <div class="small text-muted">Invoice Date</div>
+            <div class="fw-semibold">{{ d.get('invoice_date','')[:10] if d.get('invoice_date') else '—' }}</div>
+          </div>
+          <div class="col-3">
+            <div class="small text-muted">Due Date</div>
+            <div class="fw-semibold {% if invoice.is_overdue %}text-danger{% endif %}">
+              {{ d.get('due_date','')[:10] if d.get('due_date') else '—' }}
+              {% if invoice.is_overdue %}<i class="bi bi-exclamation-circle text-danger ms-1"></i>{% endif %}
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="small text-muted">Payment Terms</div>
+            <div class="fw-semibold">{{ d.get('payment_terms') or '—' }}</div>
+          </div>
+          <div class="col-3">
+            <div class="small text-muted">PO Number</div>
+            <div class="fw-semibold">{{ d.get('po_number') or '—' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Line Items -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3">Line Items</h6>
+        {% if d.get('line_items') %}
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Description</th><th class="text-center">Qty</th>
+                <th class="text-end">Unit Price</th><th class="text-end">Amount</th>
+                <th>Category</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in d.line_items %}
+              <tr>
+                <td>{{ item.description or '—' }}</td>
+                <td class="text-center">{{ item.quantity or '—' }}</td>
+                <td class="text-end">{% if item.unit_price %}{{ d.get('currency_symbol','$') }}{{ "%.2f" | format(item.unit_price) }}{% else %}—{% endif %}</td>
+                <td class="text-end fw-semibold">{% if item.amount %}{{ d.get('currency_symbol','$') }}{{ "%.2f" | format(item.amount) }}{% else %}—{% endif %}</td>
+                <td><span class="badge bg-light text-muted small">{{ item.category or 'other' }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              {% if d.get('subtotal') %}
+              <tr class="border-top">
+                <td colspan="3" class="text-end text-muted small">Subtotal</td>
+                <td class="text-end">{{ d.currency_symbol }}{{ "%.2f" | format(d.subtotal) }}</td>
+                <td></td>
+              </tr>
+              {% endif %}
+              {% if d.get('tax_amount') %}
+              <tr>
+                <td colspan="3" class="text-end text-muted small">Tax {% if d.get('tax_rate') %}({{ d.tax_rate }}%){% endif %}</td>
+                <td class="text-end">{{ d.currency_symbol }}{{ "%.2f" | format(d.tax_amount) }}</td>
+                <td></td>
+              </tr>
+              {% endif %}
+              <tr class="fw-bold">
+                <td colspan="3" class="text-end">Total</td>
+                <td class="text-end fs-6 text-primary">{{ d.get('currency_symbol','$') }}{{ "%.2f" | format(d.get('total_amount',0)) }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted small text-center py-3">No line items extracted.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Raw JSON (expandable) -->
+    <div class="card mb-3">
+      <div class="card-header py-2 d-flex align-items-center justify-content-between"
+           style="cursor:pointer;" onclick="toggleJson()">
+        <span class="small fw-semibold text-muted"><i class="bi bi-braces me-1"></i>Raw Extracted JSON</span>
+        <i class="bi bi-chevron-down" id="jsonChevron"></i>
+      </div>
+      <div class="collapse" id="jsonCollapse">
+        <div class="card-body p-0">
+          <pre style="background:#1E293B;color:#94A3B8;font-size:.78rem;
+                      max-height:400px;overflow:auto;padding:1rem;margin:0;border-radius:0 0 10px 10px;">{{ invoice_dict | tojson(indent=2) }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    {% if d.get('notes') %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-2"><i class="bi bi-sticky me-1"></i>Notes</h6>
+        <p class="small mb-0">{{ d.notes }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Attachments -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3"><i class="bi bi-paperclip me-1"></i>Attachments</h6>
+        {% for att in d.get('attachments',[]) %}
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-file-earmark text-muted"></i>
+          <span class="small">{{ att.split('/')[-1] }}</span>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-2">No attachments.</p>
+        {% endfor %}
+        <form method="POST" action="{{ url_for('invoices.attach', invoice_id=invoice.id) }}"
+              enctype="multipart/form-data" class="mt-2">
+          <div class="input-group input-group-sm">
+            <input type="file" name="attachment" class="form-control form-control-sm">
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-upload me-1"></i>Attach
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right Column ─────────────────────────────────────────── -->
+  <div class="col-md-4">
+
+    <!-- Amount Summary -->
+    <div class="card mb-3" style="background: linear-gradient(135deg,#1F4E79,#2E86AB);color:#fff;">
+      <div class="card-body text-center py-4">
+        <div style="font-size:.85rem;opacity:.8;">TOTAL AMOUNT</div>
+        <div style="font-size:2.2rem;font-weight:700;line-height:1.1;">
+          {{ d.get('currency_symbol','$') }}{{ "{:,.2f}".format(d.get('total_amount',0)) }}
+        </div>
+        <div style="font-size:.85rem;opacity:.7;">{{ d.get('currency','USD') }} · {{ d.get('category','—') }}</div>
+        {% if invoice.is_overdue %}
+        <div class="mt-2"><span class="badge bg-danger">OVERDUE</span></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Risk Details -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3"><i class="bi bi-shield-check me-1"></i>Risk Analysis</h6>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="small">Risk Score</span>
+          <span class="fw-bold">{{ d.get('risk_score',0) }}/100</span>
+        </div>
+        <div class="progress mb-3" style="height:8px;">
+          <div class="progress-bar
+            {% if d.get('risk_score',0) >= 70 %}bg-danger
+            {% elif d.get('risk_score',0) >= 30 %}bg-warning
+            {% else %}bg-success{% endif %}"
+            style="width:{{ d.get('risk_score',0) }}%">
+          </div>
+        </div>
+        {% for reason in d.get('risk_reasons',[]) %}
+        <div class="alert alert-warning py-1 px-2 mb-1" style="font-size:.78rem;">
+          <i class="bi bi-exclamation-triangle me-1"></i>{{ reason }}
+        </div>
+        {% else %}
+        <p class="small text-success"><i class="bi bi-check-circle me-1"></i>No risk factors detected.</p>
+        {% endfor %}
+        {% if d.get('duplicate_of') %}
+        <div class="alert alert-info py-2 px-2 small">
+          🔁 Duplicate of: <a href="{{ url_for('invoices.detail', invoice_id=d.duplicate_of) }}">{{ d.duplicate_of[:12] }}…</a>
+        </div>
+        {% endif %}
+
+        <div class="mt-2">
+          <div class="small text-muted mb-1">Extraction Confidence</div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="progress flex-grow-1" style="height:6px;">
+              <div class="progress-bar bg-info" style="width:{{ (d.get('extraction_confidence',0)*100)|int }}%"></div>
+            </div>
+            <span class="small fw-semibold">{{ (d.get('extraction_confidence',0)*100)|int }}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workflow Status -->
+    {% if d.get('approved_by') or d.get('rejected_by') %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-2"><i class="bi bi-diagram-3 me-1"></i>Workflow</h6>
+        {% if d.get('approved_at') %}
+        <div class="small"><span class="text-success fw-semibold">✓ Approved</span> on {{ d.approved_at[:10] }}</div>
+        {% endif %}
+        {% if d.get('rejected_at') %}
+        <div class="small"><span class="text-danger fw-semibold">✕ Rejected</span> on {{ d.rejected_at[:10] }}</div>
+        {% if d.get('rejection_reason') %}
+        <div class="small text-muted mt-1">Reason: {{ d.rejection_reason }}</div>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Audit Trail -->
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3"><i class="bi bi-clock-history me-1"></i>Audit Trail</h6>
+        <div style="max-height:300px;overflow-y:auto;">
+          {% for log in audit_trail %}
+          <div class="d-flex gap-2 mb-2 pb-2 border-bottom">
+            <div class="mt-1">
+              <i class="bi bi-circle-fill text-primary" style="font-size:.4rem;"></i>
+            </div>
+            <div>
+              <div class="small fw-semibold">{{ log.actor_name }} <span class="fw-normal text-muted">{{ log.action }}</span></div>
+              <div class="text-muted" style="font-size:.72rem;">{{ log.timestamp[:16] | replace('T',' ') }}</div>
+              {% if log.details %}
+              <div class="text-muted" style="font-size:.72rem;">
+                {% for k, v in log.details.items() %}{{ k }}: {{ v }} {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted small">No audit history.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modals ──────────────────────────────────────────────────── -->
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="POST" action="{{ url_for('invoices.reject', invoice_id=invoice.id) }}" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="bi bi-x-circle me-2"></i>Reject Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Rejecting invoice <strong>{{ invoice.invoice_number or invoice.id }}</strong>.</p>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Rejection Reason</label>
+          <textarea name="reason" class="form-control" rows="3" placeholder="Optional reason…"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-danger btn-sm">Reject Invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+{% if current_user.is_admin() %}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="POST" action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger small">
+          This action is irreversible. The invoice record and all audit history will be permanently deleted.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-danger btn-sm">Delete Permanently</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleJson() {
+  const el = document.getElementById('jsonCollapse');
+  const chevron = document.getElementById('jsonChevron');
+  el.classList.toggle('show');
+  chevron.className = el.classList.contains('show') ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+</script>
+{% endblock %}

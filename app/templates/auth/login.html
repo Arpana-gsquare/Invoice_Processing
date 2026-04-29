@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block auth_content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center"
+     style="background: linear-gradient(135deg, #1F4E79 0%, #2E86AB 100%);">
+  <div class="card shadow-lg" style="width: 420px; border-radius: 16px; overflow: hidden;">
+    <div class="text-center p-4 pb-0">
+      <div class="mb-3">
+        <i class="bi bi-file-earmark-text-fill" style="font-size: 2.5rem; color: #1F4E79;"></i>
+      </div>
+      <h4 class="fw-bold" style="color: #1F4E79;">InvoiceIQ</h4>
+      <p class="text-muted small">AI-Powered Invoice Processing</p>
+    </div>
+    <div class="card-body p-4">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="alert alert-{{ cat }} py-2 small">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="POST" action="{{ url_for('auth.login') }}">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Email Address</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+            <input type="email" name="email" class="form-control" placeholder="you@company.com" required autofocus>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Password</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <input type="password" name="password" id="passwordInput" class="form-control" placeholder="••••••••" required>
+            <button type="button" class="btn btn-outline-secondary" onclick="togglePwd()">
+              <i class="bi bi-eye" id="eyeIcon"></i>
+            </button>
+          </div>
+        </div>
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" name="remember" id="remember">
+          <label class="form-check-label small" for="remember">Remember me for 8 hours</label>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 fw-semibold">
+          <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+        </button>
+      </form>
+    </div>
+    <div class="card-footer text-center py-3" style="background: #F8FAFC;">
+      <small class="text-muted">Default: admin@company.com / Admin@123456</small>
+    </div>
+  </div>
+</div>
+<script>
+function togglePwd() {
+  const inp = document.getElementById('passwordInput');
+  const icon = document.getElementById('eyeIcon');
+  if (inp.type === 'password') {
+    inp.type = 'text'; icon.className = 'bi bi-eye-slash';
+  } else {
+    inp.type = 'password'; icon.className = 'bi bi-eye';
+  }
+}
+</script>
+{% endblock %}

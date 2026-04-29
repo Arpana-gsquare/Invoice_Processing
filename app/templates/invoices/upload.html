@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Upload Invoices – {{ APP_NAME }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+  <li class="breadcrumb-item active">Upload</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8 col-lg-7">
+    <div class="card">
+      <div class="card-body p-4">
+        <h5 class="fw-bold mb-1"><i class="bi bi-cloud-upload me-2 text-primary"></i>Upload Invoices</h5>
+        <p class="text-muted small mb-4">Upload PDF, JPG, or PNG invoice files. Gemini AI will extract data automatically.</p>
+
+        <form method="POST" action="{{ url_for('invoices.upload') }}" enctype="multipart/form-data" id="uploadForm">
+          <!-- Drop Zone -->
+          <div id="dropZone" class="border-2 border-dashed rounded-3 text-center p-5 mb-4"
+               style="border: 2px dashed #CBD5E1; cursor: pointer; transition: all .2s;"
+               onclick="document.getElementById('fileInput').click()">
+            <i class="bi bi-file-earmark-arrow-up" style="font-size: 3rem; color: #94A3B8;"></i>
+            <p class="mt-2 mb-1 fw-semibold text-muted">Drag & drop invoices here</p>
+            <p class="small text-muted">or click to browse</p>
+            <p class="small text-muted">Supported: PDF, JPG, PNG · Max 50 MB each</p>
+          </div>
+          <input type="file" name="invoices" id="fileInput" multiple
+                 accept=".pdf,.jpg,.jpeg,.png" class="d-none" onchange="handleFiles(this.files)">
+
+          <!-- File Preview List -->
+          <div id="fileList" class="mb-4"></div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" id="submitBtn" class="btn btn-primary flex-grow-1" disabled>
+              <i class="bi bi-cpu me-1"></i> Process with AI
+              <span class="badge bg-white text-primary ms-1" id="fileCountBadge">0</span>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearFiles()">
+              <i class="bi bi-x"></i> Clear
+            </button>
+          </div>
+        </form>
+
+        <!-- Progress Overlay -->
+        <div id="progressOverlay" class="d-none mt-4">
+          <div class="alert alert-info d-flex align-items-center gap-2">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <div>
+              <strong>Processing invoices…</strong><br>
+              <small class="text-muted">Gemini AI is extracting data. This may take 10–30 seconds per file.</small>
+            </div>
+          </div>
+          <div class="progress" style="height: 6px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tips Card -->
+    <div class="card mt-3">
+      <div class="card-body p-3">
+        <h6 class="fw-semibold text-muted mb-2"><i class="bi bi-lightbulb me-1 text-warning"></i>Tips for best results</h6>
+        <ul class="small text-muted mb-0 ps-3">
+          <li>Use clear, high-resolution scans (≥150 DPI)</li>
+          <li>Ensure all text is readable and not cut off</li>
+          <li>PDFs with embedded text extract faster than scanned images</li>
+          <li>Multiple invoices in one PDF are supported</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileList = document.getElementById('fileList');
+const submitBtn = document.getElementById('submitBtn');
+const fileCountBadge = document.getElementById('fileCountBadge');
+let selectedFiles = [];
+
+// Drag & Drop
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='#1F4E79'; dropZone.style.background='#EFF6FF'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor='#CBD5E1'; dropZone.style.background=''; });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.style.borderColor='#CBD5E1'; dropZone.style.background='';
+  handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(files) {
+  for (const file of files) {
+    if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+      selectedFiles.push(file);
+    }
+  }
+  renderFileList();
+  syncToInput();
+}
+
+function renderFileList() {
+  fileList.innerHTML = '';
+  selectedFiles.forEach((file, idx) => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const icon = ext === 'pdf' ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-image text-info';
+    const size = (file.size / 1024 / 1024).toFixed(2);
+    fileList.innerHTML += `
+      <div class="d-flex align-items-center justify-content-between p-2 mb-2 rounded bg-light">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi ${icon}" style="font-size:1.3rem;"></i>
+          <div>
+            <div class="small fw-semibold">${file.name}</div>
+            <div class="text-muted" style="font-size:.75rem;">${size} MB</div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removeFile(${idx})">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>`;
+  });
+  fileCountBadge.textContent = selectedFiles.length;
+  submitBtn.disabled = selectedFiles.length === 0;
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+  syncToInput();
+}
+
+function clearFiles() {
+  selectedFiles = [];
+  renderFileList();
+  fileInput.value = '';
+}
+
+function syncToInput() {
+  const dt = new DataTransfer();
+  selectedFiles.forEach(f => dt.items.add(f));
+  fileInput.files = dt.files;
+}
+
+document.getElementById('uploadForm').addEventListener('submit', () => {
+  document.getElementById('progressOverlay').classList.remove('d-none');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
+});
+</script>
+{% endblock %}

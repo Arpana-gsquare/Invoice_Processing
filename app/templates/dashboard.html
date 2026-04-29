@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – {{ APP_NAME }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Dashboard</li>
+{% endblock %}
+
+{% block content %}
+<h5 class="fw-bold mb-4"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</h5>
+
+<!-- ── KPI Cards ──────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #1F4E79;">
+      <div class="stat-value text-primary">{{ stats.total_invoices }}</div>
+      <div class="stat-label text-muted">Total Invoices</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #F59E0B;">
+      <div class="stat-value text-warning">{{ stats.pending }}</div>
+      <div class="stat-label text-muted">Pending Approval</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #10B981;">
+      <div class="stat-value text-success">{{ stats.approved }}</div>
+      <div class="stat-label text-muted">Approved</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #EF4444;">
+      <div class="stat-value text-danger">{{ stats.overdue }}</div>
+      <div class="stat-label text-muted">Overdue</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #10B981;">
+      <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.safe_count }}</div>
+      <div class="stat-label text-muted">✅ SAFE</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #F59E0B;">
+      <div class="stat-value" style="font-size:1.5rem;color:#92400E;">{{ stats.moderate_count }}</div>
+      <div class="stat-label text-muted">⚠️ MODERATE</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #EF4444;">
+      <div class="stat-value" style="font-size:1.5rem;color:#991B1B;">{{ stats.high_risk_count }}</div>
+      <div class="stat-label text-muted">🚨 HIGH RISK</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card card" style="border-left: 4px solid #6366F1;">
+      <div class="stat-value" style="font-size:1.5rem;color:#3730A3;">{{ stats.duplicate_count }}</div>
+      <div class="stat-label text-muted">🔁 DUPLICATE</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Charts Row ─────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-8">
+    <div class="card p-3">
+      <h6 class="fw-semibold mb-3 text-muted">Monthly Invoice Volume & Value</h6>
+      <canvas id="monthlyChart" height="90"></canvas>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3">
+      <h6 class="fw-semibold mb-3 text-muted">Risk Distribution</h6>
+      <canvas id="riskChart" height="180"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ── Top Vendors + Recent Activity ─────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3">Top Vendors by Invoice Count</h6>
+        {% for v in top_vendors %}
+        <div class="d-flex align-items-center mb-2">
+          <div style="width:32px;height:32px;border-radius:8px;background:#EFF6FF;
+                      display:flex;align-items:center;justify-content:center;
+                      font-weight:700;font-size:.75rem;color:#1F4E79;flex-shrink:0;">
+            {{ loop.index }}
+          </div>
+          <div class="ms-2 flex-grow-1">
+            <div class="d-flex justify-content-between">
+              <span class="small fw-semibold">{{ v._id or 'Unknown' }}</span>
+              <span class="small text-muted">{{ v.count }} inv</span>
+            </div>
+            <div class="progress mt-1" style="height:4px;">
+              <div class="progress-bar" style="width:{{ (v.count / top_vendors[0].count * 100)|int }}%;background:#1F4E79;"></div>
+            </div>
+          </div>
+          <div class="ms-3 text-end small fw-semibold text-primary" style="min-width:70px;">
+            ${{ "{:,.0f}".format(v.total_amount) }}
+          </div>
+        </div>
+        {% else %}
+        <p class="text-muted small text-center py-3">No invoices yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3">Recent Activity</h6>
+        <div style="max-height:280px;overflow-y:auto;">
+          {% for log in recent_activity %}
+          <div class="d-flex align-items-start mb-2 pb-2 border-bottom">
+            <div class="me-2 mt-1">
+              {% if log.action == 'upload' %}<i class="bi bi-cloud-upload text-primary"></i>
+              {% elif log.action == 'approve' %}<i class="bi bi-check-circle text-success"></i>
+              {% elif log.action == 'reject' %}<i class="bi bi-x-circle text-danger"></i>
+              {% elif log.action == 'flag_risk' %}<i class="bi bi-shield-exclamation text-warning"></i>
+              {% else %}<i class="bi bi-activity text-secondary"></i>{% endif %}
+            </div>
+            <div class="flex-grow-1">
+              <div class="small fw-semibold">{{ log.actor_name }} <span class="fw-normal text-muted">{{ log.action }}</span></div>
+              <div class="text-muted" style="font-size:.75rem;">{{ log.timestamp[:16] | replace('T',' ') }}</div>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted small text-center py-3">No recent activity.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recent Invoices Table ──────────────────────────────────── -->
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6 class="fw-semibold text-muted mb-0">Recent Invoices</h6>
+      <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Invoice #</th><th>Vendor</th><th>Amount</th>
+            <th>Risk</th><th>Status</th><th>Uploaded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in recent_invoices %}
+          <tr onclick="window.location='{{ url_for('invoices.detail', invoice_id=inv._id) }}'">
+            <td class="fw-semibold text-primary">{{ inv.invoice_number or '—' }}</td>
+            <td>{{ inv.vendor_name or '—' }}</td>
+            <td class="fw-semibold">{{ inv.get('currency_symbol','$') }}{{ "{:,.2f}".format(inv.total_amount) }}</td>
+            <td>
+              <span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">
+                {{ inv.risk_flag }}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge badge-{{ inv.status }}">{{ inv.status }}</span>
+            </td>
+            <td class="text-muted small">{{ inv.upload_timestamp }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No invoices yet. <a href="{{ url_for('invoices.upload') }}">Upload one</a></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Monthly Chart
+const monthlyData = {{ monthly_data | tojson }};
+const labels = monthlyData.map(d => {
+  const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[d._id.month] + ' ' + d._id.year;
+});
+const counts = monthlyData.map(d => d.count);
+const totals = monthlyData.map(d => d.total);
+
+new Chart(document.getElementById('monthlyChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'Invoice Count', data: counts, backgroundColor: '#BFDBFE', borderColor: '#1F4E79', borderWidth: 1, yAxisID: 'y' },
+      { label: 'Total Amount ($)', data: totals, type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.4, yAxisID: 'y1' },
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+    scales: {
+      y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Count' } },
+      y1: { type: 'linear', position: 'right', title: { display: true, text: 'Amount ($)' }, grid: { drawOnChartArea: false } },
+    }
+  }
+});
+
+// Risk Donut Chart
+new Chart(document.getElementById('riskChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Safe', 'Moderate', 'High Risk', 'Duplicate'],
+    datasets: [{
+      data: [{{ stats.safe_count }}, {{ stats.moderate_count }}, {{ stats.high_risk_count }}, {{ stats.duplicate_count }}],
+      backgroundColor: ['#D1FAE5','#FEF3C7','#FEE2E2','#E0E7FF'],
+      borderColor: ['#10B981','#F59E0B','#EF4444','#6366F1'],
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } }
+    },
+    cutout: '65%',
+  }
+});
+</script>
+{% endblock %}
