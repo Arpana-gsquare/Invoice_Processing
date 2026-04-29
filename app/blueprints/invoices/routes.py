@@ -18,6 +18,7 @@ from ...services.fraud_detection import analyse_invoice
 from ...services.export_service import export_csv, export_excel
 from ...services.workflow_service import transition_status, WorkflowError
 from ...services.recycle_service import soft_delete, RETENTION_OPTIONS, DEFAULT_RETENTION
+from ...services.po_matching_service import match_invoice_to_po
 from ...utils.validators import allowed_file, validate_invoice_data
 from ...utils.helpers import save_uploaded_file, paginate, build_filters
 
@@ -99,6 +100,20 @@ def _process_single_upload(file) -> dict:
 
         invoice = Invoice.create(doc)
 
+        # Auto PO matching
+        try:
+            match_result = match_invoice_to_po(invoice.to_dict())
+            invoice.update({
+                "po_id":           match_result["po_id"],
+                "po_match_status": match_result["po_match_status"],
+                "match_score":     match_result["match_score"],
+                "match_details":   match_result["match_details"],
+            })
+            logger.info("PO match for %s: %s (score %d)",
+                        original_name, match_result["po_match_status"], match_result["match_score"])
+        except Exception as po_exc:
+            logger.warning("PO matching failed for %s: %s", original_name, po_exc)
+
         AuditLog.log(
             invoice_id=invoice.id,
             action="upload",
@@ -108,6 +123,7 @@ def _process_single_upload(file) -> dict:
                 "filename": original_name,
                 "confidence": extracted.get("extraction_confidence"),
                 "risk_flag": risk["risk_flag"],
+                "po_match_status": invoice._doc.get("po_match_status", "NO_PO_FOUND"),
             },
         )
 

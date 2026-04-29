@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Upload Purchase Order – {{ APP_NAME }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('po.list_pos') }}">Purchase Orders</a></li>
+<li class="breadcrumb-item active">Upload</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-file-earmark-arrow-up text-primary fs-5"></i>
+        <h5 class="mb-0">Upload Purchase Orders</h5>
+      </div>
+      <div class="card-body p-4">
+        <p class="text-muted mb-4">Upload PO documents (PDF, JPG, PNG). Data will be extracted automatically using AI and used for invoice matching.</p>
+
+        <form method="POST" enctype="multipart/form-data" id="uploadForm">
+          <div class="upload-zone border-2 border-dashed rounded-3 p-5 text-center mb-4"
+               id="dropZone"
+               style="border-style:dashed!important;border-color:#CBD5E1;cursor:pointer;transition:all .2s;">
+            <i class="bi bi-cloud-arrow-up text-primary" style="font-size:2.5rem;"></i>
+            <p class="mt-3 mb-1 fw-semibold">Drop PO files here or click to browse</p>
+            <p class="text-muted small mb-3">PDF, JPG, PNG – up to 16 MB each</p>
+            <input type="file" name="pos" id="fileInput" multiple
+                   accept=".pdf,.jpg,.jpeg,.png" class="d-none">
+            <button type="button" class="btn btn-outline-primary btn-sm"
+                    onclick="document.getElementById('fileInput').click()">
+              <i class="bi bi-folder2-open me-1"></i>Browse Files
+            </button>
+          </div>
+
+          <div id="fileList" class="mb-4 d-none">
+            <h6 class="mb-2 text-muted">Selected files:</h6>
+            <ul class="list-group" id="fileListItems"></ul>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+              <i class="bi bi-cpu me-1"></i>Extract & Upload
+            </button>
+            <a href="{{ url_for('po.list_pos') }}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
+const fileList   = document.getElementById('fileList');
+const fileItems  = document.getElementById('fileListItems');
+const submitBtn  = document.getElementById('submitBtn');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.style.borderColor='#2E86AB'; dropZone.style.background='#F0F9FF'; });
+dropZone.addEventListener('dragleave', e => { dropZone.style.borderColor='#CBD5E1'; dropZone.style.background=''; });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.style.borderColor='#CBD5E1'; dropZone.style.background='';
+  const dt = new DataTransfer();
+  [...fileInput.files, ...e.dataTransfer.files].forEach(f => dt.items.add(f));
+  fileInput.files = dt.files; renderFiles();
+});
+fileInput.addEventListener('change', renderFiles);
+
+function renderFiles() {
+  const files = fileInput.files;
+  if (!files.length) { fileList.classList.add('d-none'); submitBtn.disabled=true; return; }
+  fileItems.innerHTML = '';
+  [...files].forEach(f => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item d-flex align-items-center gap-2 py-2';
+    const icon = f.name.endsWith('.pdf') ? 'bi-file-earmark-pdf text-danger'
+               : 'bi-file-earmark-image text-info';
+    li.innerHTML = `<i class="bi ${icon}"></i><span class="flex-grow-1">${f.name}</span><small class="text-muted">${(f.size/1024).toFixed(1)} KB</small>`;
+    fileItems.appendChild(li);
+  });
+  fileList.classList.remove('d-none');
+  submitBtn.disabled = false;
+}
+
+document.getElementById('uploadForm').addEventListener('submit', () => {
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing…';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}PO {{ po_dict.po_number or po.id }} – {{ APP_NAME }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('po.list_pos') }}">Purchase Orders</a></li>
+<li class="breadcrumb-item active">{{ po_dict.po_number or po.id }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Header card -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="text-muted small">PO Number</div>
+            <div class="fw-bold fs-5 text-primary">{{ po_dict.po_number or '—' }}</div>
+          </div>
+          <div class="col-md-3">
+            <div class="text-muted small">Vendor</div>
+            <div class="fw-semibold">{{ po_dict.vendor_name or '—' }}</div>
+            <div class="text-muted small">{{ po_dict.vendor_address or '' }}</div>
+          </div>
+          <div class="col-md-2">
+            <div class="text-muted small">PO Date</div>
+            <div class="fw-semibold">{{ po_dict.po_date[:10] if po_dict.po_date else '—' }}</div>
+          </div>
+          <div class="col-md-2">
+            <div class="text-muted small">Total Amount</div>
+            <div class="fw-bold fs-5">
+              {{ po_dict.currency_symbol or '' }}{{ '{:,.2f}'.format(po_dict.total_amount or 0) }}
+              <span class="badge bg-secondary ms-1" style="font-size:.7rem;">{{ po_dict.currency or 'USD' }}</span>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="text-muted small">Extraction Confidence</div>
+            {% set conf = ((po_dict.extraction_confidence or 0) * 100) | int %}
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <div class="progress flex-grow-1" style="height:8px;">
+                <div class="progress-bar {% if conf >= 80 %}bg-success{% elif conf >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                     style="width:{{ conf }}%"></div>
+              </div>
+              <strong>{{ conf }}%</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Line Items -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Line Items</h6></div>
+      <div class="card-body p-0">
+        {% if po_dict.line_items %}
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Item Code</th>
+                <th class="text-end">Qty</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for li in po_dict.line_items %}
+              <tr>
+                <td>{{ li.description or '—' }}</td>
+                <td><code>{{ li.item_code or '—' }}</code></td>
+                <td class="text-end">{{ li.quantity or '—' }}</td>
+                <td class="text-end">{{ '{:,.2f}'.format(li.unit_price or 0) if li.unit_price else '—' }}</td>
+                <td class="text-end fw-semibold">{{ '{:,.2f}'.format(li.amount or 0) if li.amount else '—' }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+              <tr>
+                <td colspan="4" class="text-end fw-bold">PO Total</td>
+                <td class="text-end fw-bold">{{ po_dict.currency_symbol or '' }}{{ '{:,.2f}'.format(po_dict.total_amount or 0) }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {% else %}
+          <p class="text-muted p-3 mb-0">No line items extracted.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes / Additional info -->
+  {% if po_dict.notes or po_dict.payment_terms %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        {% if po_dict.payment_terms %}
+        <p class="mb-1"><strong>Payment Terms:</strong> {{ po_dict.payment_terms }}</p>
+        {% endif %}
+        {% if po_dict.notes %}
+        <p class="mb-0"><strong>Notes:</strong> {{ po_dict.notes }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

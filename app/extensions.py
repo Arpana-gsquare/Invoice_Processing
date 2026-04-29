@@ -1,15 +1,14 @@
 """
-Shared extensions (MongoDB client, login manager, etc.)
-Initialised in create_app() to avoid circular imports.
+MongoDB extension - single MongoClient shared across the app.
 """
-from pymongo import MongoClient, ASCENDING, DESCENDING
 from flask_login import LoginManager
+from pymongo import MongoClient, ASCENDING, DESCENDING
 
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
 login_manager.login_message_category = "warning"
 
-_mongo_client: MongoClient | None = None
+_mongo_client = None
 _db = None
 
 
@@ -28,23 +27,24 @@ def get_db():
 
 
 def _create_indexes(db):
-    """Idempotent index creation – safe to call on every startup."""
-    # Invoices – core
-    db.invoices.create_index([("invoice_number", ASCENDING), ("vendor_name", ASCENDING)],
-                              unique=False, name="inv_num_vendor")
+    """Idempotent index creation - safe to call on every startup."""
+    # Invoices - core
+    db.invoices.create_index(
+        [("invoice_number", ASCENDING), ("vendor_name", ASCENDING)],
+        unique=False, name="inv_num_vendor",
+    )
     db.invoices.create_index([("upload_timestamp", DESCENDING)], name="upload_ts_desc")
-    db.invoices.create_index([("risk_flag", ASCENDING)], name="risk_flag_asc")
-    db.invoices.create_index([("status", ASCENDING)], name="status_asc")
-    db.invoices.create_index([("vendor_name", ASCENDING)], name="vendor_name_asc")
-    db.invoices.create_index([("invoice_date", DESCENDING)], name="inv_date_desc")
+    db.invoices.create_index([("risk_flag", ASCENDING)],         name="risk_flag_asc")
+    db.invoices.create_index([("status", ASCENDING)],            name="status_asc")
+    db.invoices.create_index([("vendor_name", ASCENDING)],       name="vendor_name_asc")
+    db.invoices.create_index([("invoice_date", DESCENDING)],     name="inv_date_desc")
+    db.invoices.create_index([("po_match_status", ASCENDING)],   name="po_match_status_asc")
 
-    # Soft-delete filter – speeds up all "active only" queries
+    # Soft-delete: speeds up all "active only" queries
     db.invoices.create_index([("is_deleted", ASCENDING)], name="is_deleted_asc")
 
-    # TTL index: auto-purge soft-deleted invoices when permanent_delete_at is reached.
+    # TTL index: auto-purge soft-deleted invoices at permanent_delete_at datetime.
     # expireAfterSeconds=0 means "expire AT the stored datetime value".
-    # partialFilterExpression restricts the TTL to deleted documents only,
-    # so active invoices with no permanent_delete_at are never touched.
     db.invoices.create_index(
         [("permanent_delete_at", ASCENDING)],
         expireAfterSeconds=0,
@@ -52,10 +52,11 @@ def _create_indexes(db):
         name="recycle_bin_ttl",
     )
 
-    # Users
-    db.users.create_index([("email", ASCENDING)], unique=True, name="email_unique")
-
-    # Audit trail
-    db.audit_logs.create_index([("invoice_id", ASCENDING), ("timestamp", DESCENDING)],
-                                name="audit_inv_ts")
-    db.audit_logs.create_index([("timestamp", DESCENDING)], name="audit_ts_desc")
+    # Purchase Orders
+    db.purchase_orders.create_index([("po_number", ASCENDING)],       name="po_number_asc")
+    db.purchase_orders.create_index([("vendor_name", ASCENDING)],     name="po_vendor_asc")
+    db.purchase_orders.create_index([("upload_timestamp", DESCENDING)], name="po_upload_ts_desc")
+    db.purchase_orders.create_index(
+        [("vendor_name", ASCENDING), ("total_amount", ASCENDING)],
+        name="po_vendor_amount",
+    )

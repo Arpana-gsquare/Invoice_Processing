@@ -64,6 +64,17 @@
         <i class="bi bi-shield-check me-1"></i>Re-analyse Risk
       </button>
     </form>
+
+    <!-- PO actions -->
+    <form method="POST" action="{{ url_for('po.match_po', invoice_id=invoice.id) }}">
+      <button type="submit" class="btn btn-outline-info btn-sm">
+        <i class="bi bi-arrow-left-right me-1"></i>Match PO
+      </button>
+    </form>
+    <a href="{{ url_for('po.comparison', invoice_id=invoice.id) }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-file-earmark-check me-1"></i>View PO Comparison
+    </a>
+
     {% if current_user.is_admin() %}
     <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">
       <i class="bi bi-trash me-1"></i>Move to Bin
@@ -274,6 +285,51 @@
             </div>
             <span class="small fw-semibold">{{ (d.get('extraction_confidence',0)*100)|int }}%</span>
           </div>
+        </div>
+      </div>
+    </div>
+    <!-- PO Match Status -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold text-muted mb-3"><i class="bi bi-file-earmark-check me-1"></i>PO Match</h6>
+        {% set po_status = d.get('po_match_status') %}
+        {% if po_status %}
+          {% set score = d.get('match_score', 0) %}
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold"
+                 style="width:52px;height:52px;font-size:1.1rem;flex-shrink:0;
+                 {% if po_status == 'MATCHED' %}background:#D1FAE5;color:#065F46;border:3px solid #10B981;
+                 {% elif po_status == 'PARTIAL_MATCH' %}background:#FEF3C7;color:#92400E;border:3px solid #F59E0B;
+                 {% elif po_status == 'MISMATCH' %}background:#FEE2E2;color:#991B1B;border:3px solid #EF4444;
+                 {% else %}background:#F1F5F9;color:#64748B;border:3px solid #CBD5E1;{% endif %}">
+              {{ score }}
+            </div>
+            <div>
+              <div class="fw-semibold small">{{ po_status | replace('_',' ') }}</div>
+              <div class="text-muted" style="font-size:.75rem;">score / 100</div>
+            </div>
+          </div>
+          {% set flags = d.get('match_details', {}).get('flags', []) %}
+          {% for flag in flags[:3] %}
+            {% if 'AMOUNT_EXCEEDS_PO' not in flag %}
+            <div class="small text-warning mb-1">
+              <i class="bi bi-exclamation-triangle me-1"></i>{{ flag }}
+            </div>
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          <p class="small text-muted mb-2"><i class="bi bi-dash-circle me-1"></i>Not matched yet</p>
+        {% endif %}
+        <div class="d-flex gap-2 mt-2">
+          <form method="POST" action="{{ url_for('po.match_po', invoice_id=invoice.id) }}" class="d-inline">
+            <button class="btn btn-sm btn-outline-info">
+              <i class="bi bi-arrow-clockwise me-1"></i>Run Match
+            </button>
+          </form>
+          <a href="{{ url_for('po.comparison', invoice_id=invoice.id) }}"
+             class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-eye me-1"></i>Compare
+          </a>
         </div>
       </div>
     </div>

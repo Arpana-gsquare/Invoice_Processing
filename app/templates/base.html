@@ -113,6 +113,19 @@
       </a>
     </li>
 
+    <li class="nav-section mt-2">Procurement</li>
+    <li class="nav-item">
+      <a class="nav-link {% if 'po.' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('po.list_pos') }}">
+        <i class="bi bi-file-earmark-check"></i> Purchase Orders
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('po.upload') }}">
+        <i class="bi bi-cloud-upload"></i> Upload PO
+      </a>
+    </li>
+
     <li class="nav-section mt-2">Export</li>
     <li class="nav-item">
       <a class="nav-link" href="{{ url_for('invoices.export', fmt='csv') }}">

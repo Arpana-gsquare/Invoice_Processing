@@ -244,6 +244,101 @@ class GeminiService:
             score = min(1.0, score + 0.05)
         return round(score, 2)
 
+    # ── PO Extraction ──────────────────────────────────────────────────────
+    def extract_po(self, file_path: str, file_type: str) -> dict:
+        """Extract structured data from a Purchase Order document."""
+        parts = self._build_content_parts(file_path, file_type)
+        # Replace last element (invoice prompt) with the PO prompt
+        parts[-1] = PO_EXTRACTION_PROMPT
+        raw_response = self._call_with_retry(parts)
+        extracted = self._parse_po_response(raw_response)
+        extracted["extraction_confidence"] = self._compute_po_confidence(extracted)
+        return extracted
+
+    def _parse_po_response(self, raw: str) -> dict:
+        """Parse Gemini response for PO extraction."""
+        if not raw or not raw.strip():
+            raise RuntimeError("Gemini returned an empty response for PO extraction.")
+
+        text = raw.strip()
+        text = re.sub(r"^`{3}(?:json)?\s*", "", text, flags=re.MULTILINE)
+        text = re.sub(r"\s*`{3}\s*$", "", text, flags=re.MULTILINE)
+        text = text.strip()
+
+        data = None
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        if data is None:
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if match:
+                try:
+                    data = json.loads(match.group())
+                except json.JSONDecodeError:
+                    pass
+
+        if data is None:
+            raise RuntimeError("Gemini did not return valid JSON for PO. Snippet: %r" % text[:400])
+
+        data.setdefault("line_items", [])
+        data.setdefault("currency", "USD")
+
+        if not data.get("total_amount"):
+            line_sum = sum(float(li.get("amount") or 0) for li in data.get("line_items", []))
+            data["total_amount"] = line_sum if line_sum else 0.0
+
+        return data
+
+    def _compute_po_confidence(self, data: dict) -> float:
+        key_fields = ["po_number", "vendor_name", "po_date", "total_amount", "currency", "line_items"]
+        filled = sum(1 for f in key_fields if data.get(f))
+        score = filled / len(key_fields)
+        if data.get("line_items"):
+            score = min(1.0, score + 0.05)
+        return round(score, 2)
+
+
+PO_EXTRACTION_PROMPT = """You are an expert procurement document parser. Analyze the Purchase Order (PO) image(s) and extract ALL available information.
+
+Return ONLY a valid JSON object. No markdown, no explanation, no code fences.
+
+Schema:
+{
+  "po_number": "<string or null>",
+  "vendor_name": "<string or null>",
+  "vendor_address": "<string or null>",
+  "vendor_email": "<string or null>",
+  "bill_to": "<company or department that raised the PO>",
+  "po_date": "<YYYY-MM-DD or null>",
+  "delivery_date": "<YYYY-MM-DD or null>",
+  "payment_terms": "<e.g. Net 30 or null>",
+  "currency": "<ISO 4217 e.g. USD, EUR, INR>",
+  "currency_symbol": "<e.g. $>",
+  "subtotal": null,
+  "tax_amount": null,
+  "total_amount": 0.0,
+  "line_items": [
+    {
+      "description": "<item description>",
+      "quantity": null,
+      "unit_price": null,
+      "amount": null,
+      "item_code": "<SKU or item code if present>"
+    }
+  ],
+  "notes": "<special terms, delivery notes, etc.>",
+  "raw_text": "<full text of the PO document>"
+}
+
+Rules:
+- Numbers must be plain floats without currency symbols or commas.
+- If po_number is absent set it to null.
+- If total_amount cannot be read, sum the line item amounts.
+- Aggregate line items from ALL pages for multi-page documents.
+- Return ONLY the JSON object, nothing else."""
+
 
 # Module-level singleton
 gemini_service = GeminiService()
