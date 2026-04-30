@@ -39,25 +39,25 @@
   <div class="col-6 col-md-3">
     <div class="stat-card card" style="border-left: 4px solid #10B981;">
       <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.safe_count }}</div>
-      <div class="stat-label text-muted">✅ SAFE</div>
+      <div class="stat-label text-muted">SAFE</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card card" style="border-left: 4px solid #F59E0B;">
       <div class="stat-value" style="font-size:1.5rem;color:#92400E;">{{ stats.moderate_count }}</div>
-      <div class="stat-label text-muted">⚠️ MODERATE</div>
+      <div class="stat-label text-muted">MODERATE</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card card" style="border-left: 4px solid #EF4444;">
       <div class="stat-value" style="font-size:1.5rem;color:#991B1B;">{{ stats.high_risk_count }}</div>
-      <div class="stat-label text-muted">🚨 HIGH RISK</div>
+      <div class="stat-label text-muted">HIGH RISK</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card card" style="border-left: 4px solid #6366F1;">
       <div class="stat-value" style="font-size:1.5rem;color:#3730A3;">{{ stats.duplicate_count }}</div>
-      <div class="stat-label text-muted">🔁 DUPLICATE</div>
+      <div class="stat-label text-muted">DUPLICATE</div>
     </div>
   </div>
 </div>
@@ -138,6 +138,48 @@
   </div>
 </div>
 
+<!-- ── Executive Summary ──────────────────────────────────────── -->
+<div class="card mb-4" id="execSummaryCard" style="border-top: 3px solid #1F4E79;">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 class="fw-semibold mb-0" style="color:#1F4E79; font-size:.95rem;">
+        <i class="bi bi-stars me-1" style="color:#6366F1;"></i>Executive Summary
+        <span id="execCacheBadge"
+              style="display:none; margin-left:.4rem; font-size:.65rem; font-weight:500;
+                     background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;
+                     border-radius:20px; padding:.15rem .5rem;">cached</span>
+      </h6>
+      <div class="d-flex align-items-center gap-2">
+        <small id="execTimestamp" class="text-muted" style="font-size:.73rem;"></small>
+        <button id="refreshInsightsBtn" class="btn btn-sm btn-outline-primary py-0 px-2"
+                onclick="loadExecutiveSummary(true)" style="font-size:.75rem;">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="execLoading" class="text-center py-3">
+      <div class="spinner-border spinner-border-sm text-primary me-2" role="status"
+           aria-hidden="true"></div>
+      <span class="text-muted small">Analysing invoice data with AI…</span>
+    </div>
+
+    <!-- Error -->
+    <div id="execError" class="alert alert-warning py-2 small mb-0" style="display:none;">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      <span id="execErrorMsg">Could not load insights.</span>
+      <a href="#" class="alert-link ms-2"
+         onclick="loadExecutiveSummary(true);return false;">Retry</a>
+    </div>
+
+    <!-- Insights -->
+    <ul id="execInsightsList" class="mb-0"
+        style="display:none; padding-left:1.25rem; line-height:1.8;">
+    </ul>
+  </div>
+</div>
+
 <!-- ── Recent Invoices Table ──────────────────────────────────── -->
 <div class="card">
   <div class="card-body">
@@ -181,22 +223,22 @@
 
 {% block extra_js %}
 <script>
-// Monthly Chart
+// ── Charts ────────────────────────────────────────────────────────────────
 const monthlyData = {{ monthly_data | tojson }};
 const labels = monthlyData.map(d => {
   const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return months[d._id.month] + ' ' + d._id.year;
 });
-const counts = monthlyData.map(d => d.count);
-const totals = monthlyData.map(d => d.total);
-
 new Chart(document.getElementById('monthlyChart'), {
   type: 'bar',
   data: {
     labels,
     datasets: [
-      { label: 'Invoice Count', data: counts, backgroundColor: '#BFDBFE', borderColor: '#1F4E79', borderWidth: 1, yAxisID: 'y' },
-      { label: 'Total Amount ($)', data: totals, type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.4, yAxisID: 'y1' },
+      { label: 'Invoice Count', data: monthlyData.map(d => d.count),
+        backgroundColor: '#BFDBFE', borderColor: '#1F4E79', borderWidth: 1, yAxisID: 'y' },
+      { label: 'Total Amount ($)', data: monthlyData.map(d => d.total),
+        type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent',
+        tension: 0.4, yAxisID: 'y1' },
     ]
   },
   options: {
@@ -205,30 +247,107 @@ new Chart(document.getElementById('monthlyChart'), {
     plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
     scales: {
       y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Count' } },
-      y1: { type: 'linear', position: 'right', title: { display: true, text: 'Amount ($)' }, grid: { drawOnChartArea: false } },
+      y1: { type: 'linear', position: 'right', title: { display: true, text: 'Amount ($)' },
+            grid: { drawOnChartArea: false } },
     }
   }
 });
-
-// Risk Donut Chart
 new Chart(document.getElementById('riskChart'), {
   type: 'doughnut',
   data: {
     labels: ['Safe', 'Moderate', 'High Risk', 'Duplicate'],
     datasets: [{
-      data: [{{ stats.safe_count }}, {{ stats.moderate_count }}, {{ stats.high_risk_count }}, {{ stats.duplicate_count }}],
+      data: [{{ stats.safe_count }}, {{ stats.moderate_count }},
+             {{ stats.high_risk_count }}, {{ stats.duplicate_count }}],
       backgroundColor: ['#D1FAE5','#FEF3C7','#FEE2E2','#E0E7FF'],
-      borderColor: ['#10B981','#F59E0B','#EF4444','#6366F1'],
+      borderColor:     ['#10B981','#F59E0B','#EF4444','#6366F1'],
       borderWidth: 2,
     }]
   },
   options: {
     responsive: true,
-    plugins: {
-      legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } }
-    },
+    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } } },
     cutout: '65%',
   }
 });
+
+// ── Executive Summary ─────────────────────────────────────────────────────
+const execLoading   = document.getElementById('execLoading');
+const execError     = document.getElementById('execError');
+const execErrorMsg  = document.getElementById('execErrorMsg');
+const execList      = document.getElementById('execInsightsList');
+const execTimestamp = document.getElementById('execTimestamp');
+const execCacheBadge = document.getElementById('execCacheBadge');
+const refreshBtn    = document.getElementById('refreshInsightsBtn');
+
+function timeAgo(isoString) {
+  const diffMs  = Date.now() - new Date(isoString).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1)  return 'just now';
+  if (diffMin === 1) return '1 min ago';
+  if (diffMin < 60) return diffMin + ' mins ago';
+  const diffHr = Math.floor(diffMin / 60);
+  return diffHr + (diffHr === 1 ? ' hr ago' : ' hrs ago');
+}
+
+function setLoading(on) {
+  execLoading.style.display = on ? '' : 'none';
+  refreshBtn.disabled = on;
+  if (on) {
+    execList.style.display  = 'none';
+    execError.style.display = 'none';
+  }
+}
+
+function renderInsights(data) {
+  execList.innerHTML = '';
+  (data.insights || []).forEach(insight => {
+    const li = document.createElement('li');
+    li.style.cssText = 'font-size:.875rem; color:#334155; margin-bottom:.35rem;';
+    li.textContent = insight;
+    execList.appendChild(li);
+  });
+  execList.style.display  = 'block';
+  execError.style.display = 'none';
+
+  // Timestamp
+  if (data.generated_at) {
+    execTimestamp.textContent = 'Last updated: ' + timeAgo(data.generated_at);
+  }
+
+  // Cache badge
+  if (data.cached) {
+    execCacheBadge.style.display = '';
+  } else {
+    execCacheBadge.style.display = 'none';
+  }
+}
+
+async function loadExecutiveSummary(forceRefresh = false) {
+  setLoading(true);
+  const url = '/api/v1/executive-summary' + (forceRefresh ? '?refresh=1' : '');
+  try {
+    const resp = await fetch(url, { credentials: 'same-origin' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const json = await resp.json();
+    if (!json.success) throw new Error(json.error || 'Unknown error');
+    setLoading(false);
+    renderInsights(json.data);
+  } catch (e) {
+    setLoading(false);
+    execError.style.display = '';
+    execErrorMsg.textContent = 'Could not load insights: ' + e.message;
+  }
+}
+
+// Auto-load on page ready
+document.addEventListener('DOMContentLoaded', () => loadExecutiveSummary(false));
+
+// Refresh timestamp label every minute without re-calling API
+setInterval(() => {
+  if (execTimestamp.dataset.iso) {
+    execTimestamp.textContent = 'Last updated: ' + timeAgo(execTimestamp.dataset.iso);
+  }
+}, 60000);
 </script>
 {% endblock %}

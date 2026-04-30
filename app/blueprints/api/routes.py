@@ -278,3 +278,18 @@ def vendor_analytics(vendor_name: str):
 def get_audit_trail(invoice_id: str):
     logs = AuditLog.get_for_invoice(invoice_id)
     return ok({"audit_trail": logs})
+
+
+# -- Executive Summary --------------------------------------------------------
+@api_bp.route("/executive-summary", methods=["GET"])
+@api_login_required
+def executive_summary():
+    """
+    GET /api/v1/executive-summary
+    Returns AI-generated insights from aggregated invoice data.
+    Query param: ?refresh=1  to force bypass the 5-minute cache.
+    """
+    from ...services.executive_summary_service import get_executive_summary
+    force = request.args.get("refresh", "0") == "1"
+    result = get_executive_summary(force_refresh=force)
+    return ok(result)
