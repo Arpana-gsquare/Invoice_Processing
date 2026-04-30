@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Proposals – {{ APP_NAME }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+<li class="breadcrumb-item active">Proposals</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Proposals</h4>
+  <a href="{{ url_for('proposals.upload') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Upload Proposal
+  </a>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    {% if proposals %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Proposal ID</th><th>Vendor</th><th>Proposal Date</th>
+            <th>Valid Until</th><th>Total Amount</th><th>Line Items</th>
+            <th>Confidence</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for prop in proposals %}
+          {% set d = prop.to_dict() %}
+          <tr onclick="window.location='{{ url_for('proposals.detail', proposal_id=prop.id) }}'" style="cursor:pointer;">
+            <td><code class="text-primary">{{ d.proposal_id or '—' }}</code></td>
+            <td class="fw-semibold">{{ d.vendor_name or '—' }}</td>
+            <td class="small text-muted">{{ d.proposal_date[:10] if d.proposal_date else '—' }}</td>
+            <td class="small {% if d.is_expired %}text-danger fw-semibold{% else %}text-muted{% endif %}">
+              {{ d.validity_date[:10] if d.validity_date else '—' }}
+              {% if d.is_expired %}<span class="badge bg-danger ms-1">Expired</span>{% endif %}
+            </td>
+            <td class="fw-semibold">{{ d.currency_symbol or '' }}{{ '{:,.2f}'.format(d.total_amount or 0) }}</td>
+            <td><span class="badge bg-light text-dark border">{{ (d.line_items or []) | length }}</span></td>
+            <td>
+              {% set conf = ((d.extraction_confidence or 0) * 100) | int %}
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:6px;width:70px;">
+                  <div class="progress-bar {% if conf >= 80 %}bg-success{% elif conf >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width:{{ conf }}%"></div>
+                </div>
+                <small class="text-muted">{{ conf }}%</small>
+              </div>
+            </td>
+            <td onclick="event.stopPropagation()">
+              <a href="{{ url_for('proposals.detail', proposal_id=prop.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination.total_pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+      <small class="text-muted">{{ pagination.total }} proposal(s)</small>
+      <nav><ul class="pagination pagination-sm mb-0">
+        {% if pagination.has_prev %}<li class="page-item"><a class="page-link" href="?page={{ pagination.page-1 }}">Prev</a></li>{% endif %}
+        {% for p in range(1, pagination.total_pages+1) %}
+        <li class="page-item {% if p==pagination.page %}active{% endif %}"><a class="page-link" href="?page={{ p }}">{{ p }}</a></li>
+        {% endfor %}
+        {% if pagination.has_next %}<li class="page-item"><a class="page-link" href="?page={{ pagination.page+1 }}">Next</a></li>{% endif %}
+      </ul></nav>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-file-earmark-x" style="font-size:3rem;opacity:.3;"></i>
+      <p class="mt-3 mb-1 fw-semibold">No proposals yet</p>
+      <p class="small mb-3">Upload proposal documents to enable AI-powered comparison.</p>
+      <a href="{{ url_for('proposals.upload') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Upload First Proposal</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

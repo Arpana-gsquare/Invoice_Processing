@@ -29,13 +29,15 @@ def create_app(config_class=None):
     from .blueprints.api.routes import api_bp
     from .blueprints.recycle.routes import recycle_bp
     from .blueprints.po.routes import po_bp
+    from .blueprints.proposals.routes import proposals_bp
 
-    app.register_blueprint(auth_bp,      url_prefix="/auth")
-    app.register_blueprint(dashboard_bp, url_prefix="/")
-    app.register_blueprint(invoices_bp,  url_prefix="/invoices")
-    app.register_blueprint(api_bp,       url_prefix="/api/v1")
-    app.register_blueprint(recycle_bp,   url_prefix="/recycle-bin")
-    app.register_blueprint(po_bp,        url_prefix="/purchase-orders")
+    app.register_blueprint(auth_bp,       url_prefix="/auth")
+    app.register_blueprint(dashboard_bp,  url_prefix="/")
+    app.register_blueprint(invoices_bp,   url_prefix="/invoices")
+    app.register_blueprint(api_bp,        url_prefix="/api/v1")
+    app.register_blueprint(recycle_bp,    url_prefix="/recycle-bin")
+    app.register_blueprint(po_bp,         url_prefix="/purchase-orders")
+    app.register_blueprint(proposals_bp,  url_prefix="/proposals")
 
     with app.app_context():
         _seed_admin(app)

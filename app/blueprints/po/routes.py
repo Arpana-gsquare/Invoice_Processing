@@ -187,3 +187,17 @@ def comparison(invoice_id: str):
         po_dict=po.to_dict() if po else None,
         comparison=comparison_data,
     )
+
+
+# -- Helper used by proposals blueprint ---------------------------------------
+def _get_po_dict_for_invoice(inv_dict: dict):
+    """
+    Return the matched PO as a plain dict, or None.
+    Used by the proposals blueprint when regenerating Gemini insights
+    so PO context can be passed into the three-way comparison.
+    """
+    po_id = inv_dict.get("po_id")
+    if not po_id:
+        return None
+    po = PurchaseOrder.get_by_id(po_id)
+    return po.to_dict() if po else None

@@ -1,5 +1,5 @@
 """
-Invoices Blueprint - Upload, List, Detail, Approve/Reject, Export, Attachments.
+Invoices Blueprint - Upload, List, Detail, Approve/Reject, Export, Download, Attachments.
 """
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timezone
 
 from flask import (Blueprint, render_template, request, redirect, url_for,
-                   flash, send_file, current_app, jsonify)
+                   flash, send_file, current_app, jsonify, abort)
 from flask_login import login_required, current_user
 
 from ...models.invoice import Invoice
@@ -19,6 +19,7 @@ from ...services.export_service import export_csv, export_excel
 from ...services.workflow_service import transition_status, WorkflowError
 from ...services.recycle_service import soft_delete, RETENTION_OPTIONS, DEFAULT_RETENTION
 from ...services.po_matching_service import match_invoice_to_po
+from ...services.proposal_matching_service import match_invoice_to_proposal
 from ...utils.validators import allowed_file, validate_invoice_data
 from ...utils.helpers import save_uploaded_file, paginate, build_filters
 
@@ -30,9 +31,9 @@ invoices_bp = Blueprint("invoices", __name__)
 @invoices_bp.route("/")
 @login_required
 def list_invoices():
-    page = int(request.args.get("page", 1))
+    page     = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 20))
-    filters = build_filters(request.args)
+    filters  = build_filters(request.args)
     invoices, total = Invoice.list_all(filters=filters, page=page, per_page=per_page)
     pagination = paginate(total, page, per_page)
     return render_template(
@@ -60,24 +61,23 @@ def upload():
         if file.filename == "":
             continue
         if not allowed_file(file.filename):
-            flash(f"'{file.filename}' - unsupported format. Use PDF, JPG, or PNG.", "warning")
+            flash("'%s' - unsupported format. Use PDF, JPG, or PNG." % file.filename, "warning")
             continue
         result = _process_single_upload(file)
         results.append(result)
 
-    ok = [r for r in results if r["success"]]
+    ok   = [r for r in results if r["success"]]
     fail = [r for r in results if not r["success"]]
     if ok:
-        flash(f"{len(ok)} invoice(s) uploaded and processed successfully.", "success")
-    if fail:
-        for r in fail:
-            flash(f"Failed '{r['filename']}': {r['error']}", "danger")
+        flash("%d invoice(s) uploaded and processed successfully." % len(ok), "success")
+    for r in fail:
+        flash("Failed '%s': %s" % (r["filename"], r["error"]), "danger")
 
     return redirect(url_for("invoices.list_invoices"))
 
 
 def _process_single_upload(file) -> dict:
-    """Upload, extract, validate, risk-score, and save one invoice."""
+    """Upload, extract, validate, risk-score, PO-match, proposal-match, and save one invoice."""
     try:
         file_path, original_name = save_uploaded_file(file)
         ext = original_name.rsplit(".", 1)[-1].lower()
@@ -88,11 +88,11 @@ def _process_single_upload(file) -> dict:
 
         doc = {
             **extracted,
-            "file_path": file_path,
+            "file_path":         file_path,
             "original_filename": original_name,
-            "file_type": ext,
-            "upload_timestamp": datetime.now(timezone.utc),
-            "uploaded_by": current_user.id,
+            "file_type":         ext,
+            "upload_timestamp":  datetime.now(timezone.utc),
+            "uploaded_by":       current_user.id,
         }
 
         risk = analyse_invoice(doc)
@@ -100,19 +100,34 @@ def _process_single_upload(file) -> dict:
 
         invoice = Invoice.create(doc)
 
-        # Auto PO matching
+        # Auto PO matching (non-fatal)
         try:
-            match_result = match_invoice_to_po(invoice.to_dict())
+            po_result = match_invoice_to_po(invoice.to_dict())
             invoice.update({
-                "po_id":           match_result["po_id"],
-                "po_match_status": match_result["po_match_status"],
-                "match_score":     match_result["match_score"],
-                "match_details":   match_result["match_details"],
+                "po_id":           po_result["po_id"],
+                "po_match_status": po_result["po_match_status"],
+                "match_score":     po_result["match_score"],
+                "match_details":   po_result["match_details"],
             })
             logger.info("PO match for %s: %s (score %d)",
-                        original_name, match_result["po_match_status"], match_result["match_score"])
+                        original_name, po_result["po_match_status"], po_result["match_score"])
         except Exception as po_exc:
             logger.warning("PO matching failed for %s: %s", original_name, po_exc)
+
+        # Auto Proposal matching (non-fatal)
+        try:
+            prop_result = match_invoice_to_proposal(invoice.to_dict())
+            invoice.update({
+                "proposal_id":           prop_result["proposal_id"],
+                "proposal_match_status": prop_result["proposal_match_status"],
+                "proposal_match_score":  prop_result["proposal_match_score"],
+                "proposal_insights":     prop_result["proposal_insights"],
+            })
+            logger.info("Proposal match for %s: %s (score %d)",
+                        original_name, prop_result["proposal_match_status"],
+                        prop_result["proposal_match_score"])
+        except Exception as prop_exc:
+            logger.warning("Proposal matching failed for %s: %s", original_name, prop_exc)
 
         AuditLog.log(
             invoice_id=invoice.id,
@@ -120,10 +135,11 @@ def _process_single_upload(file) -> dict:
             actor_id=current_user.id,
             actor_name=current_user.name,
             details={
-                "filename": original_name,
-                "confidence": extracted.get("extraction_confidence"),
-                "risk_flag": risk["risk_flag"],
-                "po_match_status": invoice._doc.get("po_match_status", "NO_PO_FOUND"),
+                "filename":              original_name,
+                "confidence":            extracted.get("extraction_confidence"),
+                "risk_flag":             risk["risk_flag"],
+                "po_match_status":       invoice._doc.get("po_match_status", "NO_PO_FOUND"),
+                "proposal_match_status": invoice._doc.get("proposal_match_status", "NO_PROPOSAL"),
             },
         )
 
@@ -151,20 +167,57 @@ def detail(invoice_id: str):
     )
 
 
+# -- Download Original File ---------------------------------------------------
+@invoices_bp.route("/<invoice_id>/download")
+@login_required
+def download(invoice_id: str):
+    """Serve the original uploaded invoice file as a download."""
+    invoice = Invoice.get_by_id(invoice_id)
+    if not invoice:
+        abort(404)
+
+    inv_dict  = invoice.to_dict()
+    file_path = inv_dict.get("file_path")
+    if not file_path or not os.path.isfile(file_path):
+        flash("Original file not found on disk.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    original_name = inv_dict.get("original_filename") or os.path.basename(file_path)
+    ext = (original_name.rsplit(".", 1)[-1].lower()) if "." in original_name else "pdf"
+    mimetype_map = {
+        "pdf":  "application/pdf",
+        "jpg":  "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png":  "image/png",
+    }
+    mimetype = mimetype_map.get(ext, "application/octet-stream")
+
+    AuditLog.log(
+        invoice_id=invoice_id,
+        action="download",
+        actor_id=current_user.id,
+        actor_name=current_user.name,
+        details={"filename": original_name},
+    )
+    return send_file(
+        file_path,
+        mimetype=mimetype,
+        as_attachment=True,
+        download_name=original_name,
+    )
+
+
 # -- Unified Status Transition ------------------------------------------------
 @invoices_bp.route("/<invoice_id>/transition", methods=["POST"])
 @login_required
 def transition(invoice_id: str):
-    """Single endpoint for all status changes.
-    Form fields: new_status, reason (optional)
-    """
     invoice = Invoice.get_by_id(invoice_id)
     if not invoice:
         flash("Invoice not found.", "danger")
         return redirect(url_for("invoices.list_invoices"))
 
     new_status = request.form.get("new_status", "").strip()
-    reason = request.form.get("reason", "").strip()
+    reason     = request.form.get("reason", "").strip()
 
     if new_status in ("approved", "rejected") and not current_user.can_approve():
         flash("You do not have permission to approve or reject invoices.", "danger")
@@ -214,7 +267,8 @@ def _quick_transition(invoice_id, new_status, reason=""):
         return redirect(url_for("invoices.detail", invoice_id=invoice_id))
     try:
         transition_status(invoice, new_status, current_user.id, current_user.name, reason)
-        flash("Status updated to %s." % new_status, "success" if new_status == "approved" else "warning")
+        flash("Status updated to %s." % new_status,
+              "success" if new_status == "approved" else "warning")
     except WorkflowError as e:
         flash(str(e), "danger")
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
@@ -224,7 +278,6 @@ def _quick_transition(invoice_id, new_status, reason=""):
 @invoices_bp.route("/<invoice_id>/reanalyse", methods=["POST"])
 @login_required
 def reanalyse(invoice_id: str):
-    """Re-run fraud detection on an existing invoice."""
     invoice = Invoice.get_by_id(invoice_id)
     if not invoice:
         flash("Invoice not found.", "danger")
@@ -235,7 +288,7 @@ def reanalyse(invoice_id: str):
     AuditLog.log(invoice_id=invoice_id, action="flag_risk",
                  actor_id=current_user.id, actor_name=current_user.name,
                  details={"new_flag": risk["risk_flag"]})
-    flash(f"Risk re-analysed: {risk['risk_flag']}", "info")
+    flash("Risk re-analysed: %s" % risk["risk_flag"], "info")
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
 
@@ -258,7 +311,7 @@ def attach(invoice_id: str):
     AuditLog.log(invoice_id=invoice_id, action="add_attachment",
                  actor_id=current_user.id, actor_name=current_user.name,
                  details={"filename": original_name})
-    flash(f"Attachment '{original_name}' added.", "success")
+    flash("Attachment '%s' added." % original_name, "success")
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
 
@@ -298,7 +351,7 @@ def delete(invoice_id: str):
 @invoices_bp.route("/export/<fmt>")
 @login_required
 def export(fmt: str):
-    filters = build_filters(request.args)
+    filters  = build_filters(request.args)
     invoices, _ = Invoice.list_all(filters=filters, page=1, per_page=10_000)
 
     AuditLog.log(invoice_id="bulk", action="export",

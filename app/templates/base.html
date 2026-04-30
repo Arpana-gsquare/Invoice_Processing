@@ -125,6 +125,17 @@
         <i class="bi bi-cloud-upload"></i> Upload PO
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if 'proposals.' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('proposals.list_proposals') }}">
+        <i class="bi bi-file-earmark-text"></i> Proposals
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('proposals.upload') }}">
+        <i class="bi bi-cloud-upload"></i> Upload Proposal
+      </a>
+    </li>
 
     <li class="nav-section mt-2">Export</li>
     <li class="nav-item">

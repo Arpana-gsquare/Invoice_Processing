@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block extra_css %}
 <style>
-  .po-match-badge {
+  .po-match-badge, .prop-badge {
     display: inline-flex; align-items: center; gap: .3rem;
     padding: .18rem .55rem; border-radius: 20px;
     font-size: .72rem; font-weight: 600; white-space: nowrap;
   }
-  .po-matched  { background: #D1FAE5; color: #065F46; }
-  .po-partial  { background: #FEF3C7; color: #92400E; }
-  .po-mismatch { background: #FEE2E2; color: #991B1B; }
-  .po-missing  { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
-  .po-pending  { background: #EFF6FF; color: #1E40AF; border: 1px dashed #BFDBFE; }
+  .po-matched,   .prop-matched  { background: #D1FAE5; color: #065F46; }
+  .po-partial,   .prop-partial  { background: #FEF3C7; color: #92400E; }
+  .po-mismatch,  .prop-mismatch { background: #FEE2E2; color: #991B1B; }
+  .po-missing,   .prop-missing  { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
+  .po-pending,   .prop-pending  { background: #EFF6FF; color: #1E40AF; border: 1px dashed #BFDBFE; }
 </style>
 {% endblock %}
 {% block title %}Invoices – {{ APP_NAME }}{% endblock %}
@@ -114,6 +114,7 @@
           <th>Amount</th>
           <th>Risk</th>
           <th>PO Match</th>
+          <th>Proposal</th>
           <th>Status</th>
           <th>Days</th>
           <th>Actions</th>
@@ -182,6 +183,30 @@
             {% endif %}
           </td>
           <td>
+            {% set pr_s = d.get('proposal_match_status') %}
+            {% if pr_s == 'MATCHED' %}
+              <span class="prop-badge prop-matched" title="Invoice matched to a Proposal">
+                <i class="bi bi-file-earmark-check-fill"></i> Matched
+              </span>
+            {% elif pr_s == 'PARTIAL_MATCH' %}
+              <span class="prop-badge prop-partial" title="Partial proposal match — review AI insights">
+                <i class="bi bi-file-earmark-minus-fill"></i> Partial
+              </span>
+            {% elif pr_s == 'MISMATCH' %}
+              <span class="prop-badge prop-mismatch" title="Invoice conflicts with linked proposal">
+                <i class="bi bi-file-earmark-x-fill"></i> Mismatch
+              </span>
+            {% elif pr_s == 'NO_PROPOSAL' %}
+              <span class="prop-badge prop-missing" title="No proposal found for this invoice">
+                <i class="bi bi-file-earmark-dash"></i> No Proposal
+              </span>
+            {% else %}
+              <span class="prop-badge prop-pending" title="Proposal matching not yet run">
+                <i class="bi bi-clock"></i> Not Checked
+              </span>
+            {% endif %}
+          </td>
+          <td>
             <span class="status-badge badge-{{ inv.status }}">{{ inv.status }}</span>
           </td>
           <td class="small text-muted text-center">
@@ -206,7 +231,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="11" class="text-center py-5">
+          <td colspan="12" class="text-center py-5">
             <i class="bi bi-inbox" style="font-size:2.5rem;color:#CBD5E1;"></i>
             <p class="text-muted mt-2 mb-1">No invoices found.</p>
             <a href="{{ url_for('invoices.upload') }}" class="btn btn-primary btn-sm">Upload your first invoice</a>

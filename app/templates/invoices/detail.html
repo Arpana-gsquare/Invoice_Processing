@@ -75,6 +75,24 @@
       <i class="bi bi-file-earmark-check me-1"></i>View PO Comparison
     </a>
 
+    <!-- Proposal actions -->
+    <form method="POST" action="{{ url_for('proposals.match_proposal', invoice_id=invoice.id) }}">
+      <button type="submit" class="btn btn-outline-purple btn-sm"
+              style="border-color:#7C3AED;color:#7C3AED;">
+        <i class="bi bi-file-earmark-text me-1"></i>Match Proposal
+      </button>
+    </form>
+    <a href="{{ url_for('proposals.insights', invoice_id=invoice.id) }}"
+       class="btn btn-sm" style="border:1px solid #7C3AED;color:#7C3AED;background:#FAF5FF;">
+      <i class="bi bi-stars me-1"></i>AI Insights
+    </a>
+
+    <!-- Download original -->
+    <a href="{{ url_for('invoices.download', invoice_id=invoice.id) }}"
+       class="btn btn-outline-dark btn-sm" title="Download original uploaded file">
+      <i class="bi bi-download me-1"></i>Download
+    </a>
+
     {% if current_user.is_admin() %}
     <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">
       <i class="bi bi-trash me-1"></i>Move to Bin
@@ -329,6 +347,82 @@
           <a href="{{ url_for('po.comparison', invoice_id=invoice.id) }}"
              class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-eye me-1"></i>Compare
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Proposal Insights -->
+    <div class="card mb-3" style="border-left:3px solid #7C3AED;">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-3" style="color:#7C3AED;">
+          <i class="bi bi-stars me-1"></i>Proposal Insights
+        </h6>
+        {% set pr_status = d.get('proposal_match_status') %}
+        {% set pr_score  = d.get('proposal_match_score', 0) %}
+        {% set pr_ins    = d.get('proposal_insights', {}) %}
+        {% if pr_status and pr_status != 'NO_PROPOSAL' %}
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold"
+                 style="width:52px;height:52px;font-size:1.1rem;flex-shrink:0;
+                 {% if pr_status == 'MATCHED' %}background:#EDE9FE;color:#5B21B6;border:3px solid #7C3AED;
+                 {% elif pr_status == 'PARTIAL_MATCH' %}background:#FEF3C7;color:#92400E;border:3px solid #F59E0B;
+                 {% elif pr_status == 'MISMATCH' %}background:#FEE2E2;color:#991B1B;border:3px solid #EF4444;
+                 {% else %}background:#F1F5F9;color:#64748B;border:3px solid #CBD5E1;{% endif %}">
+              {{ pr_score }}
+            </div>
+            <div>
+              <div class="fw-semibold small">{{ pr_status | replace('_',' ') }}</div>
+              <div class="text-muted" style="font-size:.75rem;">match score / 100</div>
+            </div>
+            {% if pr_ins.get('overall_verdict') %}
+            <span class="ms-auto badge rounded-pill
+              {% if pr_ins.overall_verdict == 'CLEAN' %}bg-success
+              {% elif pr_ins.overall_verdict == 'ESCALATE' %}bg-danger
+              {% else %}bg-warning text-dark{% endif %}">
+              {{ pr_ins.overall_verdict | replace('_',' ') }}
+            </span>
+            {% endif %}
+          </div>
+          {% if pr_ins.get('summary') %}
+          <p class="small text-muted mb-2" style="line-height:1.5;">
+            {{ pr_ins.summary[:200] }}{% if pr_ins.summary|length > 200 %}…{% endif %}
+          </p>
+          {% endif %}
+          {% set aa = pr_ins.get('amount_analysis', {}) %}
+          {% if aa and aa.get('difference_pct') is not none %}
+          <div class="small {% if aa.get('exceeds_proposal') %}text-danger{% else %}text-success{% endif %} mb-2">
+            <i class="bi bi-{% if aa.get('exceeds_proposal') %}exclamation-triangle{% else %}check-circle{% endif %} me-1"></i>
+            {% if aa.get('exceeds_proposal') %}
+              Invoice exceeds proposal by {{ "%.1f"|format(aa.difference_pct|float) }}%
+            {% else %}
+              Amount within {{ "%.1f"|format(aa.difference_pct|float|abs) }}% of proposal
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if pr_ins.get('risk_level') %}
+          <div class="small mb-2">
+            Risk:
+            <span class="badge
+              {% if pr_ins.risk_level == 'LOW' %}bg-success
+              {% elif pr_ins.risk_level == 'HIGH' %}bg-danger
+              {% else %}bg-warning text-dark{% endif %}">
+              {{ pr_ins.risk_level }}
+            </span>
+          </div>
+          {% endif %}
+        {% else %}
+          <p class="small text-muted mb-2"><i class="bi bi-dash-circle me-1"></i>No proposal matched yet</p>
+        {% endif %}
+        <div class="d-flex gap-2 mt-2">
+          <form method="POST" action="{{ url_for('proposals.match_proposal', invoice_id=invoice.id) }}" class="d-inline">
+            <button class="btn btn-sm" style="border:1px solid #7C3AED;color:#7C3AED;">
+              <i class="bi bi-arrow-clockwise me-1"></i>Run Match
+            </button>
+          </form>
+          <a href="{{ url_for('proposals.insights', invoice_id=invoice.id) }}"
+             class="btn btn-sm" style="border:1px solid #7C3AED;color:#7C3AED;background:#FAF5FF;">
+            <i class="bi bi-eye me-1"></i>Full Insights
           </a>
         </div>
       </div>
