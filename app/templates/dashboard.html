@@ -4,81 +4,128 @@
   <li class="breadcrumb-item active">Dashboard</li>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+  /* Clickable tile */
+  .kpi-tile {
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .kpi-tile:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 18px rgba(0,0,0,.13);
+  }
+  /* Remove blue underline / colour bleed from the <a> wrapper */
+  a.tile-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <h5 class="fw-bold mb-4"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</h5>
 
-<!-- ── KPI Cards ──────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
+<!-- ── KPI Row 1 ─────────────────────────────────────── -->
+<div class="row g-3 mb-3">
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #1F4E79;">
-      <div class="stat-value text-primary">{{ stats.total_invoices }}</div>
-      <div class="stat-label text-muted">Total Invoices</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #1F4E79;">
+        <div class="stat-value text-primary">{{ stats.total_invoices }}</div>
+        <div class="stat-label text-muted">Total Invoices</div>
+      </div>
+    </a>
   </div>
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #F59E0B;">
-      <div class="stat-value text-warning">{{ stats.pending }}</div>
-      <div class="stat-label text-muted">Pending Approval</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #F59E0B;">
+        <div class="stat-value text-warning">{{ stats.pending }}</div>
+        <div class="stat-label text-muted">Pending Approval</div>
+      </div>
+    </a>
   </div>
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #10B981;">
-      <div class="stat-value text-success">{{ stats.approved }}</div>
-      <div class="stat-label text-muted">Approved</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='approved') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #10B981;">
+        <div class="stat-value text-success">{{ stats.approved }}</div>
+        <div class="stat-label text-muted">Approved</div>
+      </div>
+    </a>
   </div>
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #EF4444;">
-      <div class="stat-value text-danger">{{ stats.overdue }}</div>
-      <div class="stat-label text-muted">Overdue</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', overdue='1') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #EF4444;">
+        <div class="stat-value text-danger">{{ stats.overdue }}</div>
+        <div class="stat-label text-muted">Overdue</div>
+      </div>
+    </a>
   </div>
+
 </div>
 
+<!-- ── KPI Row 2 ─────────────────────────────────────── -->
 <div class="row g-3 mb-4">
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #10B981;">
-      <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.low_risk_count }}</div>
-      <div class="stat-label text-muted">LOW RISK</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='LOW RISK') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #10B981;">
+        <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.low_risk_count }}</div>
+        <div class="stat-label text-muted">LOW RISK</div>
+      </div>
+    </a>
   </div>
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #F59E0B;">
-      <div class="stat-value" style="font-size:1.5rem;color:#92400E;">{{ stats.moderate_count }}</div>
-      <div class="stat-label text-muted">MODERATE</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='MODERATE') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #F59E0B;">
+        <div class="stat-value" style="font-size:1.5rem;color:#92400E;">{{ stats.moderate_count }}</div>
+        <div class="stat-label text-muted">MODERATE</div>
+      </div>
+    </a>
   </div>
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #EF4444;">
-      <div class="stat-value" style="font-size:1.5rem;color:#991B1B;">{{ stats.high_risk_count }}</div>
-      <div class="stat-label text-muted">HIGH RISK</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='HIGH RISK') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #EF4444;">
+        <div class="stat-value" style="font-size:1.5rem;color:#991B1B;">{{ stats.high_risk_count }}</div>
+        <div class="stat-label text-muted">HIGH RISK</div>
+      </div>
+    </a>
   </div>
+
   <div class="col-6 col-md-3">
-    <div class="stat-card card" style="border-left: 4px solid #6366F1;">
-      <div class="stat-value" style="font-size:1.5rem;color:#3730A3;">{{ stats.duplicate_count }}</div>
-      <div class="stat-label text-muted">DUPLICATE</div>
-    </div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='DUPLICATE') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #6366F1;">
+        <div class="stat-value" style="font-size:1.5rem;color:#3730A3;">{{ stats.duplicate_count }}</div>
+        <div class="stat-label text-muted">DUPLICATE</div>
+      </div>
+    </a>
   </div>
+
 </div>
 
-<!-- ── Charts Row ─────────────────────────────────────────────── -->
+<!-- ── Charts Row ────────────────────────────────────── -->
 <div class="row g-3 mb-4">
   <div class="col-md-8 d-flex flex-column gap-3">
     <div class="card p-3">
       <h6 class="fw-semibold mb-3 text-muted">Monthly Invoice Volume &amp; Value</h6>
       <canvas id="monthlyChart" height="90"></canvas>
     </div>
-    <!-- ── Executive Summary ──────────────────────────────── -->
-    <div class="card flex-grow-1" id="execSummaryCard" style="border-top: 3px solid #1F4E79;">
+    <!-- Executive Summary -->
+    <div class="card flex-grow-1" id="execSummaryCard" style="border-top:3px solid #1F4E79;">
       <div class="card-body">
         <div class="d-flex align-items-center justify-content-between mb-3">
-          <h6 class="fw-semibold mb-0" style="color:#1F4E79; font-size:.95rem;">
+          <h6 class="fw-semibold mb-0" style="color:#1F4E79;font-size:.95rem;">
             <i class="bi bi-stars me-1" style="color:#6366F1;"></i>Executive Summary
             <span id="execCacheBadge"
-                  style="display:none; margin-left:.4rem; font-size:.65rem; font-weight:500;
-                         background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;
-                         border-radius:20px; padding:.15rem .5rem;">cached</span>
+                  style="display:none;margin-left:.4rem;font-size:.65rem;font-weight:500;
+                         background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;
+                         border-radius:20px;padding:.15rem .5rem;">cached</span>
           </h6>
           <div class="d-flex align-items-center gap-2">
             <small id="execTimestamp" class="text-muted" style="font-size:.73rem;"></small>
@@ -88,23 +135,19 @@
             </button>
           </div>
         </div>
-        <!-- Loading -->
         <div id="execLoading" class="text-center py-3">
           <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
           <span class="text-muted small">Analysing invoice data with AI...</span>
         </div>
-        <!-- Error -->
         <div id="execError" class="alert alert-warning py-2 small mb-0" style="display:none;">
           <i class="bi bi-exclamation-triangle me-1"></i>
           <span id="execErrorMsg">Could not load insights.</span>
           <a href="#" class="alert-link ms-2"
              onclick="loadExecutiveSummary(true);return false;">Retry</a>
         </div>
-        <!-- Anomaly summary pills -->
         <div id="execAnomalySummary" style="display:none;"></div>
-        <!-- Insights -->
         <ul id="execInsightsList" class="mb-0"
-            style="display:none; padding-left:1.25rem; line-height:1.8;"></ul>
+            style="display:none;padding-left:1.25rem;line-height:1.8;"></ul>
       </div>
     </div>
   </div>
@@ -116,7 +159,7 @@
   </div>
 </div>
 
-<!-- ── Top Vendors + Recent Activity ─────────────────────────── -->
+<!-- ── Top Vendors + Recent Activity ─────────────────── -->
 <div class="row g-3 mb-4">
   <div class="col-md-6">
     <div class="card">
@@ -141,7 +184,7 @@
             </div>
           </div>
           <div class="ms-3 text-end small fw-semibold text-primary" style="min-width:70px;">
-            ${{ "{:,.0f}".format(v.total_amount) }}
+            ₹{{ "{:,.0f}".format(v.total_amount) }}
           </div>
         </div>
         {% else %}
@@ -183,7 +226,7 @@
   </div>
 </div>
 
-<!-- ── Recent Invoices Table ──────────────────────────────────── -->
+<!-- ── Recent Invoices Table ────────────────────────── -->
 <div class="card">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -202,11 +245,12 @@
         </thead>
         <tbody>
           {% for inv in recent_invoices %}
-          <tr onclick="window.location='{{ url_for('invoices.detail', invoice_id=inv._id) }}'">
+          <tr onclick="window.location='{{ url_for('invoices.detail', invoice_id=inv._id) }}'"
+              style="cursor:pointer;">
             <td class="fw-semibold text-primary">{{ inv.invoice_number or '—' }}</td>
             <td>{{ inv.vendor_name or '—' }}</td>
             <td class="fw-semibold">
-              {{ inv.get('currency_symbol','$') }}{{ "{:,.2f}".format(inv.total_amount) }}
+              {{ inv.get('currency_symbol','₹') }}{{ "{:,.2f}".format(inv.total_amount) }}
             </td>
             <td>
               <span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">
@@ -221,8 +265,7 @@
           {% else %}
           <tr>
             <td colspan="6" class="text-center text-muted py-4">
-              No invoices yet.
-              <a href="{{ url_for('invoices.upload') }}">Upload one</a>
+              No invoices yet. <a href="{{ url_for('invoices.upload') }}">Upload one</a>
             </td>
           </tr>
           {% endfor %}
@@ -252,7 +295,7 @@ new Chart(document.getElementById('monthlyChart'), {
         backgroundColor: '#BFDBFE', borderColor: '#1F4E79', borderWidth: 1, yAxisID: 'y'
       },
       {
-        label: 'Total Amount ($)',
+        label: 'Total Amount (₹)',
         data: monthlyData.map(d => d.total),
         type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent',
         tension: 0.4, yAxisID: 'y1'
@@ -267,7 +310,7 @@ new Chart(document.getElementById('monthlyChart'), {
       y:  { type: 'linear', position: 'left',
             title: { display: true, text: 'Count' } },
       y1: { type: 'linear', position: 'right',
-            title: { display: true, text: 'Amount ($)' },
+            title: { display: true, text: 'Amount (₹)' },
             grid: { drawOnChartArea: false } },
     }
   }
@@ -328,8 +371,6 @@ function setLoading(on) {
 
 function renderInsights(data) {
   execList.innerHTML = '';
-
-  // Anomaly severity pills
   const anomalies = (data.anomalies || []).filter(a => a.severity !== 'LOW');
   const anomalyDiv = document.getElementById('execAnomalySummary');
   if (anomalyDiv) {
@@ -337,38 +378,27 @@ function renderInsights(data) {
       const high = anomalies.filter(a => a.severity === 'HIGH').length;
       const med  = anomalies.filter(a => a.severity === 'MEDIUM').length;
       let html = '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem;">';
-      if (high) html += '<span style="display:inline-flex;align-items:center;gap:.3rem;' +
-        'padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;' +
-        'background:#FEE2E2;color:#991B1B;">&#128680; ' + high + ' HIGH</span>';
-      if (med)  html += '<span style="display:inline-flex;align-items:center;gap:.3rem;' +
-        'padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;' +
-        'background:#FEF3C7;color:#92400E;">&#9888; ' + med + ' MEDIUM</span>';
-      html += '<span style="font-size:.75rem;color:#64748B;align-self:center;">' +
-              'anomalies detected</span></div>';
+      if (high) html += '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;background:#FEE2E2;color:#991B1B;">&#128680; ' + high + ' HIGH</span>';
+      if (med)  html += '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;background:#FEF3C7;color:#92400E;">&#9888; ' + med + ' MEDIUM</span>';
+      html += '<span style="font-size:.75rem;color:#64748B;align-self:center;">anomalies detected</span></div>';
       anomalyDiv.innerHTML = html;
       anomalyDiv.style.display = '';
     } else {
       anomalyDiv.style.display = 'none';
     }
   }
-
-  // Insight lines
   (data.insights || []).forEach(insight => {
     const li = document.createElement('li');
-    li.style.cssText = 'font-size:.875rem; color:#334155; margin-bottom:.4rem;';
+    li.style.cssText = 'font-size:.875rem;color:#334155;margin-bottom:.4rem;';
     li.textContent = insight;
     execList.appendChild(li);
   });
   execList.style.display  = 'block';
   execError.style.display = 'none';
-
-  // Timestamp
   if (data.generated_at) {
     execTimestamp.dataset.iso = data.generated_at;
     execTimestamp.textContent = 'Last updated: ' + timeAgo(data.generated_at);
   }
-
-  // Cache badge
   execCacheBadge.style.display = data.cached ? '' : 'none';
 }
 
