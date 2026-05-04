@@ -150,6 +150,29 @@ def _process_single_upload(file) -> dict:
         return {"success": False, "filename": file.filename, "error": str(exc)}
 
 
+# -- AJAX Single-File Upload (used by batch/folder uploader) ------------------
+@invoices_bp.route("/upload/single", methods=["POST"])
+@login_required
+def upload_single():
+    """
+    Process one file and return a JSON result.
+    Called sequentially by the front-end batch uploader so the user sees
+    live per-file progress.
+    """
+    file = request.files.get("invoice")
+    if not file or file.filename == "":
+        return jsonify({"success": False, "error": "No file provided"}), 400
+    if not allowed_file(file.filename):
+        return jsonify({
+            "success": False,
+            "filename": file.filename,
+            "error": "Unsupported format. Use PDF, JPG, or PNG.",
+        }), 400
+    result = _process_single_upload(file)
+    status_code = 200 if result["success"] else 500
+    return jsonify(result), status_code
+
+
 # -- Detail View --------------------------------------------------------------
 @invoices_bp.route("/<invoice_id>")
 @login_required

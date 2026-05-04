@@ -5,147 +5,406 @@
   <li class="breadcrumb-item active">Upload</li>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+  /* ── Drop zone ──────────────────────────────────── */
+  #dropZone {
+    border: 2px dashed #CBD5E1;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all .2s;
+    background: #FAFBFC;
+  }
+  #dropZone.drag-over {
+    border-color: #1F4E79;
+    background: #EFF6FF;
+  }
+
+  /* ── Pick buttons ───────────────────────────────── */
+  .pick-btn {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .45rem 1.1rem; border-radius: 8px; font-size: .875rem;
+    font-weight: 500; cursor: pointer; transition: all .15s;
+    border: 1.5px solid;
+  }
+  .pick-btn-files  { border-color: #1F4E79; color: #1F4E79; background: #fff; }
+  .pick-btn-folder { border-color: #0D9488; color: #0D9488; background: #fff; }
+  .pick-btn-files:hover  { background: #EFF6FF; }
+  .pick-btn-folder:hover { background: #F0FDFA; }
+
+  /* ── File list cards ────────────────────────────── */
+  .file-card {
+    display: flex; align-items: center; gap: .65rem;
+    padding: .55rem .8rem; border-radius: 8px;
+    background: #F8FAFC; border: 1px solid #E2E8F0;
+    margin-bottom: .45rem; font-size: .88rem;
+  }
+  .file-card .fc-name  { font-weight: 600; color: #1E293B; word-break: break-all; }
+  .file-card .fc-size  { color: #94A3B8; font-size: .75rem; }
+  .file-card .fc-status { margin-left: auto; flex-shrink: 0; }
+
+  /* status states */
+  .fc-pending  .fc-status-icon { color: #94A3B8; }
+  .fc-running  { border-color: #BFDBFE; background: #EFF6FF; }
+  .fc-running  .fc-status-icon { color: #2563EB; }
+  .fc-ok       { border-color: #A7F3D0; background: #F0FDF4; }
+  .fc-ok       .fc-status-icon { color: #059669; }
+  .fc-err      { border-color: #FECACA; background: #FEF2F2; }
+  .fc-err      .fc-status-icon { color: #DC2626; }
+  .fc-skipped  { opacity: .5; }
+
+  /* ── Overall progress bar ───────────────────────── */
+  #batchProgress { height: 8px; border-radius: 4px; overflow: hidden; }
+  #batchProgress .progress-bar { transition: width .3s ease; }
+
+  /* ── Results summary ────────────────────────────── */
+  #resultSummary .rs-ok  { color: #059669; }
+  #resultSummary .rs-err { color: #DC2626; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-md-8 col-lg-7">
+  <div class="col-md-9 col-lg-8">
+
+    <!-- ── Upload Card ──────────────────────────────── -->
     <div class="card">
       <div class="card-body p-4">
-        <h5 class="fw-bold mb-1"><i class="bi bi-cloud-upload me-2 text-primary"></i>Upload Invoices</h5>
-        <p class="text-muted small mb-4">Upload PDF, JPG, or PNG invoice files. Gemini AI will extract data automatically.</p>
+        <h5 class="fw-bold mb-1">
+          <i class="bi bi-cloud-upload me-2 text-primary"></i>Upload Invoices
+        </h5>
+        <p class="text-muted small mb-4">
+          Upload PDF, JPG, or PNG files — or select an entire folder.
+          Gemini AI will extract data from each file automatically.
+        </p>
 
-        <form method="POST" action="{{ url_for('invoices.upload') }}" enctype="multipart/form-data" id="uploadForm">
-          <!-- Drop Zone -->
-          <div id="dropZone" class="border-2 border-dashed rounded-3 text-center p-5 mb-4"
-               style="border: 2px dashed #CBD5E1; cursor: pointer; transition: all .2s;"
-               onclick="document.getElementById('fileInput').click()">
-            <i class="bi bi-file-earmark-arrow-up" style="font-size: 3rem; color: #94A3B8;"></i>
-            <p class="mt-2 mb-1 fw-semibold text-muted">Drag & drop invoices here</p>
-            <p class="small text-muted">or click to browse</p>
-            <p class="small text-muted">Supported: PDF, JPG, PNG · Max 50 MB each</p>
-          </div>
-          <input type="file" name="invoices" id="fileInput" multiple
-                 accept=".pdf,.jpg,.jpeg,.png" class="d-none" onchange="handleFiles(this.files)">
+        <!-- Drop zone -->
+        <div id="dropZone" class="text-center p-5 mb-3"
+             onclick="document.getElementById('fileInput').click()">
+          <i class="bi bi-file-earmark-arrow-up" style="font-size:3rem;color:#94A3B8;"></i>
+          <p class="mt-2 mb-1 fw-semibold text-muted">Drag &amp; drop invoices here</p>
+          <p class="small text-muted mb-0">or use the buttons below</p>
+        </div>
 
-          <!-- File Preview List -->
-          <div id="fileList" class="mb-4"></div>
+        <!-- Hidden inputs -->
+        <input type="file" id="fileInput"   name="invoices" multiple
+               accept=".pdf,.jpg,.jpeg,.png" class="d-none" onchange="addFiles(this.files)">
+        <input type="file" id="folderInput" name="invoices" multiple
+               webkitdirectory mozdirectory class="d-none" onchange="addFiles(this.files)">
 
-          <div class="d-flex gap-2">
-            <button type="submit" id="submitBtn" class="btn btn-primary flex-grow-1" disabled>
-              <i class="bi bi-cpu me-1"></i> Process with AI
-              <span class="badge bg-white text-primary ms-1" id="fileCountBadge">0</span>
-            </button>
-            <button type="button" class="btn btn-outline-secondary" onclick="clearFiles()">
-              <i class="bi bi-x"></i> Clear
-            </button>
-          </div>
-        </form>
+        <!-- Pick buttons -->
+        <div class="d-flex gap-2 justify-content-center mb-4">
+          <label class="pick-btn pick-btn-files" onclick="document.getElementById('fileInput').click()">
+            <i class="bi bi-file-earmark-plus"></i> Select Files
+          </label>
+          <label class="pick-btn pick-btn-folder" onclick="document.getElementById('folderInput').click()">
+            <i class="bi bi-folder2-open"></i> Select Folder
+          </label>
+        </div>
 
-        <!-- Progress Overlay -->
-        <div id="progressOverlay" class="d-none mt-4">
-          <div class="alert alert-info d-flex align-items-center gap-2">
-            <div class="spinner-border spinner-border-sm" role="status"></div>
-            <div>
-              <strong>Processing invoices…</strong><br>
-              <small class="text-muted">Gemini AI is extracting data. This may take 10–30 seconds per file.</small>
-            </div>
+        <!-- ── File list ────────────────────────────── -->
+        <div id="fileList" class="mb-3" style="max-height:340px;overflow-y:auto;"></div>
+
+        <!-- ── Overall progress (hidden until upload starts) -->
+        <div id="batchProgressWrap" class="d-none mb-3">
+          <div class="d-flex justify-content-between mb-1">
+            <small class="text-muted fw-semibold" id="batchLabel">Processing…</small>
+            <small class="text-muted" id="batchCounter">0 / 0</small>
           </div>
-          <div class="progress" style="height: 6px;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+          <div class="progress" id="batchProgress">
+            <div class="progress-bar bg-primary" id="batchBar" role="progressbar" style="width:0%"></div>
           </div>
+        </div>
+
+        <!-- ── Result summary (hidden until done) ──── -->
+        <div id="resultSummary" class="d-none mb-3"></div>
+
+        <!-- ── Action buttons ───────────────────────── -->
+        <div class="d-flex gap-2">
+          <button id="uploadBtn" class="btn btn-primary flex-grow-1" disabled onclick="startBatchUpload()">
+            <i class="bi bi-cpu me-1"></i> Process with AI
+            <span class="badge bg-white text-primary ms-1" id="fileCountBadge">0</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="clearAll()">
+            <i class="bi bi-x"></i> Clear
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Tips Card -->
+    <!-- ── Tips Card ──────────────────────────────────── -->
     <div class="card mt-3">
       <div class="card-body p-3">
-        <h6 class="fw-semibold text-muted mb-2"><i class="bi bi-lightbulb me-1 text-warning"></i>Tips for best results</h6>
+        <h6 class="fw-semibold text-muted mb-2">
+          <i class="bi bi-lightbulb me-1 text-warning"></i>Tips for best results
+        </h6>
         <ul class="small text-muted mb-0 ps-3">
           <li>Use clear, high-resolution scans (≥150 DPI)</li>
           <li>Ensure all text is readable and not cut off</li>
           <li>PDFs with embedded text extract faster than scanned images</li>
-          <li>Multiple invoices in one PDF are supported</li>
+          <li>Select a folder to process all invoices inside it in one click</li>
+          <li>Sub-folders are included when you pick a directory</li>
         </ul>
       </div>
     </div>
+
   </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const fileList = document.getElementById('fileList');
-const submitBtn = document.getElementById('submitBtn');
-const fileCountBadge = document.getElementById('fileCountBadge');
-let selectedFiles = [];
+/* ================================================================
+   State
+   ================================================================ */
+let queue = [];          // { file, id, cardEl, statusEl, iconEl }
+let isUploading = false;
+let batchDone   = false;  // true once a batch has been submitted — locks the button until new files arrive
 
-// Drag & Drop
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='#1F4E79'; dropZone.style.background='#EFF6FF'; });
-dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor='#CBD5E1'; dropZone.style.background=''; });
+const ALLOWED_EXTS = ['pdf', 'jpg', 'jpeg', 'png'];
+
+/* ================================================================
+   Drop-zone drag events
+   ================================================================ */
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault();
-  dropZone.style.borderColor='#CBD5E1'; dropZone.style.background='';
-  handleFiles(e.dataTransfer.files);
+  dropZone.classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
 });
 
-function handleFiles(files) {
-  for (const file of files) {
-    if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
-      selectedFiles.push(file);
-    }
+/* ================================================================
+   Add files to queue (de-duplicate by name+size)
+   ================================================================ */
+function addFiles(fileList) {
+  let added = 0;
+  for (const file of fileList) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) continue;                       // skip non-invoice files
+    const key = file.name + '_' + file.size;
+    if (queue.find(q => q.file.name + '_' + q.file.size === key)) continue;  // de-dup
+
+    const id = 'fc_' + Math.random().toString(36).slice(2);
+    queue.push({ file, id, cardEl: null, statusEl: null, iconEl: null });
+    added++;
   }
-  renderFileList();
-  syncToInput();
+  if (added > 0) {
+    // New files arrived — unlock the button and reset previous results
+    batchDone = false;
+    document.getElementById('resultSummary').classList.add('d-none');
+    document.getElementById('batchProgressWrap').classList.add('d-none');
+  }
+  renderQueue();
+  updateUI();
 }
 
-function renderFileList() {
-  fileList.innerHTML = '';
-  selectedFiles.forEach((file, idx) => {
-    const ext = file.name.split('.').pop().toLowerCase();
-    const icon = ext === 'pdf' ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-image text-info';
-    const size = (file.size / 1024 / 1024).toFixed(2);
-    fileList.innerHTML += `
-      <div class="d-flex align-items-center justify-content-between p-2 mb-2 rounded bg-light">
-        <div class="d-flex align-items-center gap-2">
-          <i class="bi ${icon}" style="font-size:1.3rem;"></i>
-          <div>
-            <div class="small fw-semibold">${file.name}</div>
-            <div class="text-muted" style="font-size:.75rem;">${size} MB</div>
-          </div>
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removeFile(${idx})">
-          <i class="bi bi-x"></i>
-        </button>
-      </div>`;
+/* ================================================================
+   Render file cards
+   ================================================================ */
+function renderQueue() {
+  const list = document.getElementById('fileList');
+  list.innerHTML = '';
+
+  queue.forEach((item, idx) => {
+    const ext  = item.file.name.split('.').pop().toLowerCase();
+    const icon = (ext === 'pdf') ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-image text-info';
+    const size = (item.file.size / 1048576).toFixed(2);
+
+    const card = document.createElement('div');
+    card.id        = item.id;
+    card.className = 'file-card fc-pending';
+    card.innerHTML = `
+      <i class="bi ${icon}" style="font-size:1.4rem;flex-shrink:0;"></i>
+      <div style="min-width:0;">
+        <div class="fc-name">${escHtml(item.file.name)}</div>
+        <div class="fc-size">${size} MB</div>
+      </div>
+      <div class="fc-status">
+        <span class="fc-status-icon" id="icon_${item.id}">
+          <i class="bi bi-clock text-secondary" style="font-size:1.1rem;"></i>
+        </span>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1 fc-remove-btn"
+              onclick="removeFile(${idx})" title="Remove">
+        <i class="bi bi-x"></i>
+      </button>`;
+    list.appendChild(card);
+
+    item.cardEl   = card;
+    item.iconEl   = document.getElementById('icon_' + item.id);
   });
-  fileCountBadge.textContent = selectedFiles.length;
-  submitBtn.disabled = selectedFiles.length === 0;
 }
 
 function removeFile(idx) {
-  selectedFiles.splice(idx, 1);
-  renderFileList();
-  syncToInput();
+  if (isUploading) return;
+  queue.splice(idx, 1);
+  renderQueue();
+  updateUI();
 }
 
-function clearFiles() {
-  selectedFiles = [];
-  renderFileList();
-  fileInput.value = '';
+function clearAll() {
+  if (isUploading) return;
+  queue     = [];
+  batchDone = false;
+  renderQueue();
+  updateUI();
+  document.getElementById('resultSummary').classList.add('d-none');
+  document.getElementById('batchProgressWrap').classList.add('d-none');
+  document.getElementById('fileInput').value   = '';
+  document.getElementById('folderInput').value = '';
 }
 
-function syncToInput() {
-  const dt = new DataTransfer();
-  selectedFiles.forEach(f => dt.items.add(f));
-  fileInput.files = dt.files;
+function updateUI() {
+  const btn   = document.getElementById('uploadBtn');
+  const badge = document.getElementById('fileCountBadge');
+  badge.textContent = queue.length;
+  const locked = (queue.length === 0 || isUploading || batchDone);
+  btn.disabled = locked;
+  if (batchDone && !isUploading) {
+    btn.title = 'All files already processed. Add new files to enable.';
+  } else {
+    btn.title = '';
+  }
 }
 
-document.getElementById('uploadForm').addEventListener('submit', () => {
-  document.getElementById('progressOverlay').classList.remove('d-none');
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
-});
+/* ================================================================
+   Batch AJAX upload — one file at a time
+   ================================================================ */
+async function startBatchUpload() {
+  if (queue.length === 0 || isUploading) return;
+  isUploading = true;
+  updateUI();
+
+  // Hide remove buttons while uploading
+  document.querySelectorAll('.fc-remove-btn').forEach(b => b.classList.add('d-none'));
+
+  const total = queue.length;
+  let okCount = 0, errCount = 0;
+
+  // Show progress bar
+  const progressWrap = document.getElementById('batchProgressWrap');
+  const batchBar     = document.getElementById('batchBar');
+  const batchLabel   = document.getElementById('batchLabel');
+  const batchCounter = document.getElementById('batchCounter');
+  progressWrap.classList.remove('d-none');
+
+  for (let i = 0; i < queue.length; i++) {
+    const item = queue[i];
+
+    // Update progress header
+    batchLabel.textContent   = `Processing "${item.file.name}"…`;
+    batchCounter.textContent = `${i + 1} / ${total}`;
+    batchBar.style.width     = Math.round(((i) / total) * 100) + '%';
+
+    // Mark card as running
+    setCardState(item, 'running',
+      '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>');
+
+    const formData = new FormData();
+    formData.append('invoice', item.file);
+
+    try {
+      const resp = await fetch("{{ url_for('invoices.upload_single') }}", {
+        method: 'POST',
+        body:   formData,
+      });
+      const data = await resp.json();
+
+      if (data.success) {
+        okCount++;
+        setCardState(item, 'ok',
+          '<i class="bi bi-check-circle-fill text-success" style="font-size:1.2rem;" title="Uploaded"></i>');
+      } else {
+        errCount++;
+        setCardState(item, 'err',
+          `<i class="bi bi-x-circle-fill text-danger" style="font-size:1.2rem;" title="${escHtml(data.error || 'Failed')}"></i>`);
+        addErrNote(item, data.error || 'Processing failed');
+      }
+    } catch (netErr) {
+      errCount++;
+      setCardState(item, 'err',
+        '<i class="bi bi-exclamation-circle-fill text-danger" style="font-size:1.2rem;" title="Network error"></i>');
+      addErrNote(item, 'Network error — please retry.');
+    }
+  }
+
+  // Final bar
+  batchBar.style.width     = '100%';
+  batchBar.classList.replace('bg-primary', errCount > 0 ? 'bg-warning' : 'bg-success');
+  batchLabel.textContent   = 'Done!';
+  batchCounter.textContent = `${total} / ${total}`;
+
+  // Summary
+  showSummary(okCount, errCount, total);
+  isUploading = false;
+  batchDone   = true;   // ← lock button; only new files can unlock it
+  updateUI();
+}
+
+/* ================================================================
+   Card state helpers
+   ================================================================ */
+function setCardState(item, state, iconHtml) {
+  item.cardEl.className = `file-card fc-${state}`;
+  item.iconEl.innerHTML = iconHtml;
+}
+
+function addErrNote(item, msg) {
+  const note = document.createElement('div');
+  note.style.cssText = 'font-size:.73rem;color:#DC2626;margin-top:.2rem;';
+  note.textContent   = msg;
+  item.cardEl.querySelector('.fc-name').after(note);
+}
+
+/* ================================================================
+   Result summary banner
+   ================================================================ */
+function showSummary(ok, err, total) {
+  const el = document.getElementById('resultSummary');
+  el.classList.remove('d-none');
+
+  if (err === 0) {
+    el.innerHTML = `
+      <div class="alert alert-success d-flex align-items-center gap-2 mb-0 py-2">
+        <i class="bi bi-check-circle-fill fs-5"></i>
+        <div>
+          <strong>All ${total} invoice${total !== 1 ? 's' : ''} processed successfully!</strong><br>
+          <a href="{{ url_for('invoices.list_invoices') }}" class="alert-link">View in Invoices →</a>
+        </div>
+      </div>`;
+  } else if (ok === 0) {
+    el.innerHTML = `
+      <div class="alert alert-danger d-flex align-items-center gap-2 mb-0 py-2">
+        <i class="bi bi-x-circle-fill fs-5"></i>
+        <div>
+          <strong>All ${total} file${total !== 1 ? 's' : ''} failed to process.</strong><br>
+          Check the errors above and try again.
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="alert alert-warning d-flex align-items-center gap-2 mb-0 py-2">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+          <strong class="rs-ok">${ok} succeeded</strong>,
+          <strong class="rs-err">${err} failed</strong> out of ${total} files.<br>
+          <a href="{{ url_for('invoices.list_invoices') }}" class="alert-link">View uploaded invoices →</a>
+        </div>
+      </div>`;
+  }
+}
+
+/* ================================================================
+   Util
+   ================================================================ */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 </script>
 {% endblock %}
