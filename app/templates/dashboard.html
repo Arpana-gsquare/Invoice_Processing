@@ -64,10 +64,48 @@
 
 <!-- ── Charts Row ─────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
-  <div class="col-md-8">
+  <div class="col-md-8 d-flex flex-column gap-3">
     <div class="card p-3">
       <h6 class="fw-semibold mb-3 text-muted">Monthly Invoice Volume & Value</h6>
       <canvas id="monthlyChart" height="90"></canvas>
+    </div>
+    <!-- ── Executive Summary ──────────────────────────────── -->
+    <div class="card flex-grow-1" id="execSummaryCard" style="border-top: 3px solid #1F4E79;">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h6 class="fw-semibold mb-0" style="color:#1F4E79; font-size:.95rem;">
+            <i class="bi bi-stars me-1" style="color:#6366F1;"></i>Executive Summary
+            <span id="execCacheBadge"
+                  style="display:none; margin-left:.4rem; font-size:.65rem; font-weight:500;
+                         background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;
+                         border-radius:20px; padding:.15rem .5rem;">cached</span>
+          </h6>
+          <div class="d-flex align-items-center gap-2">
+            <small id="execTimestamp" class="text-muted" style="font-size:.73rem;"></small>
+            <button id="refreshInsightsBtn" class="btn btn-sm btn-outline-primary py-0 px-2"
+                    onclick="loadExecutiveSummary(true)" style="font-size:.75rem;">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+          </div>
+        </div>
+        <!-- Loading -->
+        <div id="execLoading" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm text-primary me-2" role="status"
+               aria-hidden="true"></div>
+          <span class="text-muted small">Analysing invoice data with AI…</span>
+        </div>
+        <!-- Error -->
+        <div id="execError" class="alert alert-warning py-2 small mb-0" style="display:none;">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          <span id="execErrorMsg">Could not load insights.</span>
+          <a href="#" class="alert-link ms-2"
+             onclick="loadExecutiveSummary(true);return false;">Retry</a>
+        </div>
+        <!-- Insights -->
+        <ul id="execInsightsList" class="mb-0"
+            style="display:none; padding-left:1.25rem; line-height:1.8;">
+        </ul>
+      </div>
     </div>
   </div>
   <div class="col-md-4">
@@ -135,48 +173,6 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- ── Executive Summary ──────────────────────────────────────── -->
-<div class="card mb-4" id="execSummaryCard" style="border-top: 3px solid #1F4E79;">
-  <div class="card-body">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h6 class="fw-semibold mb-0" style="color:#1F4E79; font-size:.95rem;">
-        <i class="bi bi-stars me-1" style="color:#6366F1;"></i>Executive Summary
-        <span id="execCacheBadge"
-              style="display:none; margin-left:.4rem; font-size:.65rem; font-weight:500;
-                     background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE;
-                     border-radius:20px; padding:.15rem .5rem;">cached</span>
-      </h6>
-      <div class="d-flex align-items-center gap-2">
-        <small id="execTimestamp" class="text-muted" style="font-size:.73rem;"></small>
-        <button id="refreshInsightsBtn" class="btn btn-sm btn-outline-primary py-0 px-2"
-                onclick="loadExecutiveSummary(true)" style="font-size:.75rem;">
-          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-        </button>
-      </div>
-    </div>
-
-    <!-- Loading -->
-    <div id="execLoading" class="text-center py-3">
-      <div class="spinner-border spinner-border-sm text-primary me-2" role="status"
-           aria-hidden="true"></div>
-      <span class="text-muted small">Analysing invoice data with AI…</span>
-    </div>
-
-    <!-- Error -->
-    <div id="execError" class="alert alert-warning py-2 small mb-0" style="display:none;">
-      <i class="bi bi-exclamation-triangle me-1"></i>
-      <span id="execErrorMsg">Could not load insights.</span>
-      <a href="#" class="alert-link ms-2"
-         onclick="loadExecutiveSummary(true);return false;">Retry</a>
-    </div>
-
-    <!-- Insights -->
-    <ul id="execInsightsList" class="mb-0"
-        style="display:none; padding-left:1.25rem; line-height:1.8;">
-    </ul>
   </div>
 </div>
 
