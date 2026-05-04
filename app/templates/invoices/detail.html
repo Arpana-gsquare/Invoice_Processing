@@ -14,7 +14,7 @@
     <h5 class="fw-bold mb-1">
       Invoice {{ invoice.invoice_number or '—' }}
       <span class="risk-badge badge-{{ invoice.risk_flag | replace(' ','-') }} ms-2">
-        {% if invoice.risk_flag == 'SAFE' %}✅{% elif invoice.risk_flag == 'MODERATE' %}⚠️{% elif invoice.risk_flag == 'HIGH RISK' %}🚨{% else %}🔁{% endif %}
+        {% if invoice.risk_flag == 'LOW RISK' %}✅{% elif invoice.risk_flag == 'MODERATE' %}⚠️{% elif invoice.risk_flag == 'HIGH RISK' %}🚨{% else %}🔁{% endif %}
         {{ invoice.risk_flag }}
       </span>
       <span class="status-badge badge-{{ invoice.status }} ms-1">{{ invoice.status }}</span>

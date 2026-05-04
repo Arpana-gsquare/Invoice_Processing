@@ -38,8 +38,8 @@
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
     <div class="stat-card card" style="border-left: 4px solid #10B981;">
-      <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.safe_count }}</div>
-      <div class="stat-label text-muted">SAFE</div>
+      <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.low_risk_count }}</div>
+      <div class="stat-label text-muted">LOW RISK</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
@@ -66,7 +66,7 @@
 <div class="row g-3 mb-4">
   <div class="col-md-8 d-flex flex-column gap-3">
     <div class="card p-3">
-      <h6 class="fw-semibold mb-3 text-muted">Monthly Invoice Volume & Value</h6>
+      <h6 class="fw-semibold mb-3 text-muted">Monthly Invoice Volume &amp; Value</h6>
       <canvas id="monthlyChart" height="90"></canvas>
     </div>
     <!-- ── Executive Summary ──────────────────────────────── -->
@@ -90,9 +90,8 @@
         </div>
         <!-- Loading -->
         <div id="execLoading" class="text-center py-3">
-          <div class="spinner-border spinner-border-sm text-primary me-2" role="status"
-               aria-hidden="true"></div>
-          <span class="text-muted small">Analysing invoice data with AI…</span>
+          <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+          <span class="text-muted small">Analysing invoice data with AI...</span>
         </div>
         <!-- Error -->
         <div id="execError" class="alert alert-warning py-2 small mb-0" style="display:none;">
@@ -105,8 +104,7 @@
         <div id="execAnomalySummary" style="display:none;"></div>
         <!-- Insights -->
         <ul id="execInsightsList" class="mb-0"
-            style="display:none; padding-left:1.25rem; line-height:1.8;">
-        </ul>
+            style="display:none; padding-left:1.25rem; line-height:1.8;"></ul>
       </div>
     </div>
   </div>
@@ -137,7 +135,9 @@
               <span class="small text-muted">{{ v.count }} inv</span>
             </div>
             <div class="progress mt-1" style="height:4px;">
-              <div class="progress-bar" style="width:{{ (v.count / top_vendors[0].count * 100)|int }}%;background:#1F4E79;"></div>
+              <div class="progress-bar"
+                   style="width:{{ (v.count / top_vendors[0].count * 100)|int }}%;background:#1F4E79;">
+              </div>
             </div>
           </div>
           <div class="ms-3 text-end small fw-semibold text-primary" style="min-width:70px;">
@@ -165,8 +165,13 @@
               {% else %}<i class="bi bi-activity text-secondary"></i>{% endif %}
             </div>
             <div class="flex-grow-1">
-              <div class="small fw-semibold">{{ log.actor_name }} <span class="fw-normal text-muted">{{ log.action }}</span></div>
-              <div class="text-muted" style="font-size:.75rem;">{{ log.timestamp[:16] | replace('T',' ') }}</div>
+              <div class="small fw-semibold">
+                {{ log.actor_name }}
+                <span class="fw-normal text-muted">{{ log.action }}</span>
+              </div>
+              <div class="text-muted" style="font-size:.75rem;">
+                {{ log.timestamp[:16] | replace('T',' ') }}
+              </div>
             </div>
           </div>
           {% else %}
@@ -183,7 +188,9 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="fw-semibold text-muted mb-0">Recent Invoices</h6>
-      <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-sm btn-outline-primary">View All</a>
+      <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-sm btn-outline-primary">
+        View All
+      </a>
     </div>
     <div class="table-responsive">
       <table class="table mb-0">
@@ -198,7 +205,9 @@
           <tr onclick="window.location='{{ url_for('invoices.detail', invoice_id=inv._id) }}'">
             <td class="fw-semibold text-primary">{{ inv.invoice_number or '—' }}</td>
             <td>{{ inv.vendor_name or '—' }}</td>
-            <td class="fw-semibold">{{ inv.get('currency_symbol','$') }}{{ "{:,.2f}".format(inv.total_amount) }}</td>
+            <td class="fw-semibold">
+              {{ inv.get('currency_symbol','$') }}{{ "{:,.2f}".format(inv.total_amount) }}
+            </td>
             <td>
               <span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">
                 {{ inv.risk_flag }}
@@ -210,7 +219,12 @@
             <td class="text-muted small">{{ inv.upload_timestamp }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No invoices yet. <a href="{{ url_for('invoices.upload') }}">Upload one</a></td></tr>
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              No invoices yet.
+              <a href="{{ url_for('invoices.upload') }}">Upload one</a>
+            </td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -232,11 +246,17 @@ new Chart(document.getElementById('monthlyChart'), {
   data: {
     labels,
     datasets: [
-      { label: 'Invoice Count', data: monthlyData.map(d => d.count),
-        backgroundColor: '#BFDBFE', borderColor: '#1F4E79', borderWidth: 1, yAxisID: 'y' },
-      { label: 'Total Amount ($)', data: monthlyData.map(d => d.total),
+      {
+        label: 'Invoice Count',
+        data: monthlyData.map(d => d.count),
+        backgroundColor: '#BFDBFE', borderColor: '#1F4E79', borderWidth: 1, yAxisID: 'y'
+      },
+      {
+        label: 'Total Amount ($)',
+        data: monthlyData.map(d => d.total),
         type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent',
-        tension: 0.4, yAxisID: 'y1' },
+        tension: 0.4, yAxisID: 'y1'
+      },
     ]
   },
   options: {
@@ -244,19 +264,26 @@ new Chart(document.getElementById('monthlyChart'), {
     interaction: { mode: 'index', intersect: false },
     plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
     scales: {
-      y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Count' } },
-      y1: { type: 'linear', position: 'right', title: { display: true, text: 'Amount ($)' },
+      y:  { type: 'linear', position: 'left',
+            title: { display: true, text: 'Count' } },
+      y1: { type: 'linear', position: 'right',
+            title: { display: true, text: 'Amount ($)' },
             grid: { drawOnChartArea: false } },
     }
   }
 });
+
 new Chart(document.getElementById('riskChart'), {
   type: 'doughnut',
   data: {
-    labels: ['Safe', 'Moderate', 'High Risk', 'Duplicate'],
+    labels: ['Low Risk', 'Moderate', 'High Risk', 'Duplicate'],
     datasets: [{
-      data: [{{ stats.safe_count }}, {{ stats.moderate_count }},
-             {{ stats.high_risk_count }}, {{ stats.duplicate_count }}],
+      data: [
+        {{ stats.low_risk_count }},
+        {{ stats.moderate_count }},
+        {{ stats.high_risk_count }},
+        {{ stats.duplicate_count }}
+      ],
       backgroundColor: ['#D1FAE5','#FEF3C7','#FEE2E2','#E0E7FF'],
       borderColor:     ['#10B981','#F59E0B','#EF4444','#6366F1'],
       borderWidth: 2,
@@ -264,26 +291,28 @@ new Chart(document.getElementById('riskChart'), {
   },
   options: {
     responsive: true,
-    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } } },
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } }
+    },
     cutout: '65%',
   }
 });
 
 // ── Executive Summary ─────────────────────────────────────────────────────
-const execLoading   = document.getElementById('execLoading');
-const execError     = document.getElementById('execError');
-const execErrorMsg  = document.getElementById('execErrorMsg');
-const execList      = document.getElementById('execInsightsList');
-const execTimestamp = document.getElementById('execTimestamp');
+const execLoading    = document.getElementById('execLoading');
+const execError      = document.getElementById('execError');
+const execErrorMsg   = document.getElementById('execErrorMsg');
+const execList       = document.getElementById('execInsightsList');
+const execTimestamp  = document.getElementById('execTimestamp');
 const execCacheBadge = document.getElementById('execCacheBadge');
-const refreshBtn    = document.getElementById('refreshInsightsBtn');
+const refreshBtn     = document.getElementById('refreshInsightsBtn');
 
 function timeAgo(isoString) {
   const diffMs  = Date.now() - new Date(isoString).getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1)  return 'just now';
+  if (diffMin < 1)   return 'just now';
   if (diffMin === 1) return '1 min ago';
-  if (diffMin < 60) return diffMin + ' mins ago';
+  if (diffMin < 60)  return diffMin + ' mins ago';
   const diffHr = Math.floor(diffMin / 60);
   return diffHr + (diffHr === 1 ? ' hr ago' : ' hrs ago');
 }
@@ -297,21 +326,10 @@ function setLoading(on) {
   }
 }
 
-function severityPill(sev) {
-  const cfg = {
-    HIGH:   { bg: '#FEE2E2', color: '#991B1B', icon: '🚨' },
-    MEDIUM: { bg: '#FEF3C7', color: '#92400E', icon: '⚠️' },
-    LOW:    { bg: '#F0F9FF', color: '#0369A1', icon: 'ℹ️' },
-  }[sev] || { bg: '#F1F5F9', color: '#475569', icon: '' };
-  return `<span style="display:inline-flex;align-items:center;gap:.2rem;padding:.1rem .45rem;
-    border-radius:20px;font-size:.65rem;font-weight:600;background:${cfg.bg};color:${cfg.color};
-    margin-right:.4rem;vertical-align:middle;">${cfg.icon} ${sev}</span>`;
-}
-
 function renderInsights(data) {
   execList.innerHTML = '';
 
-  // ── Anomaly summary pills (if any HIGH/MEDIUM flags) ──────────────────
+  // Anomaly severity pills
   const anomalies = (data.anomalies || []).filter(a => a.severity !== 'LOW');
   const anomalyDiv = document.getElementById('execAnomalySummary');
   if (anomalyDiv) {
@@ -319,9 +337,14 @@ function renderInsights(data) {
       const high = anomalies.filter(a => a.severity === 'HIGH').length;
       const med  = anomalies.filter(a => a.severity === 'MEDIUM').length;
       let html = '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem;">';
-      if (high) html += `<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;background:#FEE2E2;color:#991B1B;">🚨 ${high} HIGH</span>`;
-      if (med)  html += `<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;background:#FEF3C7;color:#92400E;">⚠️ ${med} MEDIUM</span>`;
-      html += '<span style="font-size:.75rem;color:#64748B;align-self:center;">anomalies detected</span></div>';
+      if (high) html += '<span style="display:inline-flex;align-items:center;gap:.3rem;' +
+        'padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;' +
+        'background:#FEE2E2;color:#991B1B;">&#128680; ' + high + ' HIGH</span>';
+      if (med)  html += '<span style="display:inline-flex;align-items:center;gap:.3rem;' +
+        'padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;' +
+        'background:#FEF3C7;color:#92400E;">&#9888; ' + med + ' MEDIUM</span>';
+      html += '<span style="font-size:.75rem;color:#64748B;align-self:center;">' +
+              'anomalies detected</span></div>';
       anomalyDiv.innerHTML = html;
       anomalyDiv.style.display = '';
     } else {
@@ -329,7 +352,7 @@ function renderInsights(data) {
     }
   }
 
-  // ── AI insight lines ───────────────────────────────────────────────────
+  // Insight lines
   (data.insights || []).forEach(insight => {
     const li = document.createElement('li');
     li.style.cssText = 'font-size:.875rem; color:#334155; margin-bottom:.4rem;';
@@ -341,15 +364,15 @@ function renderInsights(data) {
 
   // Timestamp
   if (data.generated_at) {
-    execTimestamp.dataset.iso   = data.generated_at;
-    execTimestamp.textContent   = 'Last updated: ' + timeAgo(data.generated_at);
+    execTimestamp.dataset.iso = data.generated_at;
+    execTimestamp.textContent = 'Last updated: ' + timeAgo(data.generated_at);
   }
 
   // Cache badge
   execCacheBadge.style.display = data.cached ? '' : 'none';
 }
 
-async function loadExecutiveSummary(forceRefresh = false) {
+async function loadExecutiveSummary(forceRefresh) {
   setLoading(true);
   const url = '/api/v1/executive-summary' + (forceRefresh ? '?refresh=1' : '');
   try {
@@ -366,10 +389,8 @@ async function loadExecutiveSummary(forceRefresh = false) {
   }
 }
 
-// Auto-load on page ready
 document.addEventListener('DOMContentLoaded', () => loadExecutiveSummary(false));
 
-// Refresh timestamp label every minute without re-calling API
 setInterval(() => {
   if (execTimestamp.dataset.iso) {
     execTimestamp.textContent = 'Last updated: ' + timeAgo(execTimestamp.dataset.iso);

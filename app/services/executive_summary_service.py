@@ -2,12 +2,12 @@
 Executive Summary Service
 --------------------------
 Architecture:
-  1. MongoDB aggregation  → all countable KPIs (free, instant)
-  2. Python anomaly rules → deterministic flags from aggregated data (free)
-  3. Gemini              → interprets the anomaly flags + headline numbers
+  1. MongoDB aggregation  -> all countable KPIs (free, instant)
+  2. Python anomaly rules -> deterministic flags from aggregated data (free)
+  3. Gemini              -> interprets anomaly flags + headline numbers
                            into plain-English insights (~400-600 input tokens)
 
-Gemini ONLY sees: headline numbers + pre-detected anomaly list.
+Gemini only sees: headline numbers + pre-detected anomaly list.
 It does NOT see raw invoice documents or full vendor tables.
 
 Cache: in-process dict, 5-minute TTL.
@@ -26,7 +26,9 @@ from ..extensions import get_db
 
 logger = logging.getLogger(__name__)
 
-# ── Cache ──────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Cache
+# ---------------------------------------------------------------------------
 _cache: dict[str, dict] = {}
 CACHE_TTL_SECONDS = 300
 
@@ -40,8 +42,7 @@ def _cache_set(key: str, data: dict):
     _cache[key] = {"data": data, "expires_at": time.time() + CACHE_TTL_SECONDS}
 
 
-# ── Helper ─────────────────────────────────────────────────────────────────
-def _pct_change(old: float, new: float) -> float | None:
+def _pct_change(old: float, new: float):
     return round((new - old) / old * 100, 1) if old else None
 
 
@@ -50,10 +51,6 @@ def _pct_change(old: float, new: float) -> float | None:
 # =============================================================================
 
 def aggregate_kpis() -> dict[str, Any]:
-    """
-    Single-pass + small targeted pipelines for all countable KPIs.
-    Returns a compact dict used both for anomaly detection and Gemini payload.
-    """
     db  = get_db()
     now = datetime.now(timezone.utc)
 
@@ -62,7 +59,7 @@ def aggregate_kpis() -> dict[str, Any]:
     prev_start  = prev_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     base        = {"is_deleted": {"$ne": True}}
 
-    # ── Global single-pass ─────────────────────────────────────────────────
+    # Global single-pass
     g_raw = list(db.invoices.aggregate([
         {"$match": base},
         {"$group": {
@@ -75,6 +72,7 @@ def aggregate_kpis() -> dict[str, Any]:
             "rejected":      {"$sum": {"$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]}},
             "high_risk":     {"$sum": {"$cond": [{"$eq": ["$risk_flag", "HIGH RISK"]}, 1, 0]}},
             "moderate":      {"$sum": {"$cond": [{"$eq": ["$risk_flag", "MODERATE"]},  1, 0]}},
+            "low_risk":      {"$sum": {"$cond": [{"$eq": ["$risk_flag", "LOW RISK"]},  1, 0]}},
             "duplicates":    {"$sum": {"$cond": [{"$eq": ["$risk_flag", "DUPLICATE"]}, 1, 0]}},
             "po_matched":    {"$sum": {"$cond": [{"$eq": ["$po_match_status", "MATCHED"]}, 1, 0]}},
             "prop_matched":  {"$sum": {"$cond": [{"$eq": ["$proposal_match_status", "MATCHED"]}, 1, 0]}},
@@ -97,6 +95,7 @@ def aggregate_kpis() -> dict[str, Any]:
         "high_risk_count":         g.get("high_risk", 0),
         "high_risk_pct":           round(g.get("high_risk", 0) / total * 100, 1),
         "moderate_count":          g.get("moderate", 0),
+        "low_risk_count":          g.get("low_risk", 0),
         "duplicate_count":         g.get("duplicates", 0),
         "overdue_count":           g.get("overdue", 0),
         "overdue_pct":             round(g.get("overdue", 0) / total * 100, 1),
@@ -106,7 +105,7 @@ def aggregate_kpis() -> dict[str, Any]:
         "proposal_match_rate_pct": round(g.get("prop_matched", 0) / total * 100, 1),
     }
 
-    # ── Month-over-month ───────────────────────────────────────────────────
+    # Month-over-month
     def _month_agg(match_extra: dict) -> dict:
         rows = list(db.invoices.aggregate([
             {"$match": {**base, **match_extra}},
@@ -131,7 +130,7 @@ def aggregate_kpis() -> dict[str, Any]:
         "mom_amount_change_pct": _pct_change(p.get("total", 0), m.get("total", 0)),
     }
 
-    # ── Top vendors (top 5 by spend — only name, count, total) ────────────
+    # Top 5 vendors by spend
     vendors_raw = list(db.invoices.aggregate([
         {"$match": base},
         {"$group": {
@@ -146,7 +145,6 @@ def aggregate_kpis() -> dict[str, Any]:
         {"$limit": 5},
     ]))
 
-    # Previous-month avg per vendor (for spike detection)
     prev_avgs = {
         row["_id"]: row["avg"]
         for row in db.invoices.aggregate([
@@ -158,19 +156,19 @@ def aggregate_kpis() -> dict[str, Any]:
 
     top_vendors = []
     for v in vendors_raw:
-        name  = v["_id"] or "Unknown"
-        cnt   = v["invoice_count"] or 1
+        name = v["_id"] or "Unknown"
+        cnt  = v["invoice_count"] or 1
         top_vendors.append({
-            "vendor_name":      name,
-            "invoice_count":    v["invoice_count"],
-            "total_amount":     round(v["total_amount"], 2),
-            "avg_amount":       round(v["avg_amount"], 2),
-            "prev_month_avg":   round(prev_avgs.get(name, 0), 2),
-            "avg_change_pct":   _pct_change(prev_avgs.get(name, 0), v["avg_amount"]),
-            "high_risk_count":  v["high_risk"],
-            "high_risk_pct":    round(v["high_risk"] / cnt * 100, 1),
-            "rejection_count":  v["rejected"],
-            "rejection_pct":    round(v["rejected"] / cnt * 100, 1),
+            "vendor_name":     name,
+            "invoice_count":   v["invoice_count"],
+            "total_amount":    round(v["total_amount"], 2),
+            "avg_amount":      round(v["avg_amount"], 2),
+            "prev_month_avg":  round(prev_avgs.get(name, 0), 2),
+            "avg_change_pct":  _pct_change(prev_avgs.get(name, 0), v["avg_amount"]),
+            "high_risk_count": v["high_risk"],
+            "high_risk_pct":   round(v["high_risk"] / cnt * 100, 1),
+            "rejection_count": v["rejected"],
+            "rejection_pct":   round(v["rejected"] / cnt * 100, 1),
         })
 
     return {
@@ -186,107 +184,93 @@ def aggregate_kpis() -> dict[str, Any]:
 # =============================================================================
 
 def detect_anomalies(kpis: dict) -> list[dict]:
-    """
-    Apply deterministic rules to the aggregated KPIs.
-    Returns a list of anomaly dicts:  {type, severity, message, data}
-
-    Severity: HIGH / MEDIUM / LOW
-    """
     g       = kpis["global"]
     mom     = kpis["mom"]
     vendors = kpis["top_vendors"]
     total   = g["total_invoices"] or 1
     flags   = []
 
-    # ── Duplicate invoices ─────────────────────────────────────────────────
+    # Duplicates
     if g["duplicate_count"] > 0:
         flags.append({
-            "type": "duplicates",
-            "severity": "HIGH",
+            "type": "duplicates", "severity": "HIGH",
             "message": (
-                f"{g['duplicate_count']} duplicate invoice(s) detected — "
-                f"potential double-payment risk."
+                "%d duplicate invoice(s) detected — potential double-payment risk."
+                % g["duplicate_count"]
             ),
             "data": {"count": g["duplicate_count"]},
         })
 
-    # ── High-risk rate ─────────────────────────────────────────────────────
+    # High-risk rate
     if g["high_risk_pct"] >= 25:
         flags.append({
-            "type": "high_risk_rate",
-            "severity": "HIGH",
+            "type": "high_risk_rate", "severity": "HIGH",
             "message": (
-                f"{g['high_risk_pct']}% of invoices flagged HIGH RISK "
-                f"({g['high_risk_count']} of {g['total_invoices']})."
+                "%.1f%% of invoices flagged HIGH RISK (%d of %d)."
+                % (g["high_risk_pct"], g["high_risk_count"], g["total_invoices"])
             ),
             "data": {"pct": g["high_risk_pct"], "count": g["high_risk_count"]},
         })
     elif g["high_risk_pct"] >= 10:
         flags.append({
-            "type": "high_risk_rate",
-            "severity": "MEDIUM",
+            "type": "high_risk_rate", "severity": "MEDIUM",
             "message": (
-                f"{g['high_risk_pct']}% high-risk rate ({g['high_risk_count']} invoices) "
-                f"— above the 10% threshold."
+                "%.1f%% high-risk rate (%d invoices) — above the 10%% threshold."
+                % (g["high_risk_pct"], g["high_risk_count"])
             ),
             "data": {"pct": g["high_risk_pct"], "count": g["high_risk_count"]},
         })
 
-    # ── Overdue backlog ────────────────────────────────────────────────────
+    # Overdue backlog
     if g["overdue_pct"] >= 30:
         flags.append({
-            "type": "overdue_backlog",
-            "severity": "HIGH",
+            "type": "overdue_backlog", "severity": "HIGH",
             "message": (
-                f"{g['overdue_count']} invoices overdue ({g['overdue_pct']}% of total) — "
-                f"payment delays accumulating."
+                "%d invoices overdue (%.1f%% of total) — payment delays accumulating."
+                % (g["overdue_count"], g["overdue_pct"])
             ),
             "data": {"count": g["overdue_count"], "pct": g["overdue_pct"]},
         })
     elif g["overdue_count"] > 0:
         flags.append({
-            "type": "overdue_backlog",
-            "severity": "LOW",
-            "message": (
-                f"{g['overdue_count']} overdue invoice(s) pending payment."
-            ),
+            "type": "overdue_backlog", "severity": "LOW",
+            "message": "%d overdue invoice(s) pending payment." % g["overdue_count"],
             "data": {"count": g["overdue_count"]},
         })
 
-    # ── Approval bottleneck ────────────────────────────────────────────────
+    # Approval bottleneck
     pending_pct = round(g["pending_count"] / total * 100, 1)
     if pending_pct >= 60 and g["total_invoices"] >= 5:
         flags.append({
-            "type": "approval_bottleneck",
-            "severity": "MEDIUM",
+            "type": "approval_bottleneck", "severity": "MEDIUM",
             "message": (
-                f"{pending_pct}% of invoices still pending approval "
-                f"({g['pending_count']} invoices) — workflow bottleneck."
+                "%.1f%% of invoices still pending approval (%d invoices) — workflow bottleneck."
+                % (pending_pct, g["pending_count"])
             ),
             "data": {"pct": pending_pct, "count": g["pending_count"]},
         })
 
-    # ── PO coverage gap ────────────────────────────────────────────────────
+    # PO coverage gap
     if g["po_match_rate_pct"] < 30 and g["total_invoices"] >= 5:
         flags.append({
-            "type": "po_coverage_gap",
-            "severity": "MEDIUM",
+            "type": "po_coverage_gap", "severity": "MEDIUM",
             "message": (
-                f"Only {g['po_match_rate_pct']}% of invoices matched to a PO — "
-                f"procurement controls may be insufficient."
+                "Only %.1f%% of invoices matched to a PO — procurement controls may be insufficient."
+                % g["po_match_rate_pct"]
             ),
             "data": {"pct": g["po_match_rate_pct"]},
         })
 
-    # ── MoM spend spike ───────────────────────────────────────────────────
+    # MoM spend spike / drop
     mom_amt = mom.get("mom_amount_change_pct")
     if mom_amt is not None and mom_amt >= 50:
         flags.append({
-            "type": "mom_spend_spike",
-            "severity": "HIGH",
+            "type": "mom_spend_spike", "severity": "HIGH",
             "message": (
-                f"Invoice spend surged {mom_amt:+.1f}% month-over-month "
-                f"(${mom['previous_month_total']:,.0f} → ${mom['current_month_total']:,.0f})."
+                "Invoice spend surged %+.1f%% month-over-month ($%s -> $%s)."
+                % (mom_amt,
+                   "{:,.0f}".format(mom["previous_month_total"]),
+                   "{:,.0f}".format(mom["current_month_total"]))
             ),
             "data": {"pct": mom_amt,
                      "prev": mom["previous_month_total"],
@@ -294,69 +278,64 @@ def detect_anomalies(kpis: dict) -> list[dict]:
         })
     elif mom_amt is not None and mom_amt <= -40:
         flags.append({
-            "type": "mom_spend_drop",
-            "severity": "LOW",
+            "type": "mom_spend_drop", "severity": "LOW",
             "message": (
-                f"Invoice spend dropped {mom_amt:.1f}% month-over-month "
-                f"(${mom['previous_month_total']:,.0f} → ${mom['current_month_total']:,.0f})."
+                "Invoice spend dropped %.1f%% month-over-month ($%s -> $%s)."
+                % (mom_amt,
+                   "{:,.0f}".format(mom["previous_month_total"]),
+                   "{:,.0f}".format(mom["current_month_total"]))
             ),
             "data": {"pct": mom_amt},
         })
 
-    # ── Per-vendor anomalies ───────────────────────────────────────────────
+    # Per-vendor anomalies
     for v in vendors:
         name = v["vendor_name"]
+        chg  = v.get("avg_change_pct")
 
-        # Vendor avg price spike vs their own prior month
-        chg = v.get("avg_change_pct")
         if chg is not None and chg >= 40 and v["invoice_count"] >= 2:
             flags.append({
                 "type": "vendor_price_spike",
                 "severity": "HIGH" if chg >= 80 else "MEDIUM",
                 "message": (
-                    f"{name} avg invoice value rose {chg:+.1f}% vs last month "
-                    f"(${v['prev_month_avg']:,.0f} → ${v['avg_amount']:,.0f})."
+                    "%s avg invoice value rose %+.1f%% vs last month ($%s -> $%s)."
+                    % (name, chg,
+                       "{:,.0f}".format(v["prev_month_avg"]),
+                       "{:,.0f}".format(v["avg_amount"]))
                 ),
                 "data": {"vendor": name, "pct": chg,
                          "prev_avg": v["prev_month_avg"],
                          "curr_avg": v["avg_amount"]},
             })
 
-        # Vendor with high rejection rate
         if v["rejection_pct"] >= 40 and v["invoice_count"] >= 3:
             flags.append({
-                "type": "vendor_high_rejections",
-                "severity": "MEDIUM",
+                "type": "vendor_high_rejections", "severity": "MEDIUM",
                 "message": (
-                    f"{name} has a {v['rejection_pct']}% rejection rate "
-                    f"({v['rejection_count']} of {v['invoice_count']} invoices rejected)."
+                    "%s has a %.1f%% rejection rate (%d of %d invoices rejected)."
+                    % (name, v["rejection_pct"], v["rejection_count"], v["invoice_count"])
                 ),
-                "data": {"vendor": name, "pct": v["rejection_pct"],
-                         "rejected": v["rejection_count"],
-                         "total": v["invoice_count"]},
+                "data": {"vendor": name, "pct": v["rejection_pct"]},
             })
 
-        # Vendor consistently high-risk
         if v["high_risk_pct"] >= 50 and v["invoice_count"] >= 2:
             flags.append({
-                "type": "vendor_risk_pattern",
-                "severity": "HIGH",
+                "type": "vendor_risk_pattern", "severity": "HIGH",
                 "message": (
-                    f"{name}: {v['high_risk_pct']}% of their invoices are HIGH RISK "
-                    f"({v['high_risk_count']} of {v['invoice_count']})."
+                    "%s: %.1f%% of their invoices are HIGH RISK (%d of %d)."
+                    % (name, v["high_risk_pct"], v["high_risk_count"], v["invoice_count"])
                 ),
                 "data": {"vendor": name, "pct": v["high_risk_pct"]},
             })
 
-    # Sort: HIGH first, then MEDIUM, then LOW
-    _order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
-    flags.sort(key=lambda x: _order.get(x["severity"], 3))
+    order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    flags.sort(key=lambda x: order.get(x["severity"], 3))
     return flags
 
 
 # =============================================================================
 # 3. Gemini — interprets anomaly flags into plain-English insights
-#    Payload: ~400–600 tokens (headline numbers + anomaly list only)
+#    Payload: ~400-600 tokens (headline numbers + anomaly list only)
 # =============================================================================
 
 INSIGHT_PROMPT = """\
@@ -364,11 +343,11 @@ You are a financial analyst AI. You have been given:
 1. Headline invoice portfolio metrics
 2. A list of pre-detected anomalies (flagged by automated rules)
 
-Your job is to write 5–8 concise executive insights for a finance team.
+Your job is to write 5-8 concise executive insights for a finance team.
 - Prioritise HIGH-severity anomalies
 - Reference specific numbers from the data
 - Add context or implications a rule cannot provide (e.g. "this may indicate...")
-- Each insight is 1–2 sentences max
+- Each insight is 1-2 sentences max
 - If there are no anomalies, summarise the portfolio health positively
 
 METRICS:
@@ -377,36 +356,30 @@ METRICS:
 ANOMALIES:
 {anomalies_json}
 
-Return ONLY valid JSON — no markdown, no explanation:
+Return ONLY valid JSON - no markdown, no explanation:
 {{"insights": ["insight 1", "insight 2", ...]}}"""
 
 
 def generate_insights(kpis: dict, anomalies: list[dict]) -> list[str]:
-    """
-    Send only headline metrics + anomaly list to Gemini.
-    Falls back to rule-based narrative if Gemini fails.
-    """
     from .gemini_service import gemini_service
 
     g   = kpis["global"]
     mom = kpis["mom"]
 
-    # Compact metrics payload — just the numbers Gemini needs for context
     metrics = {
-        "total_invoices":     g["total_invoices"],
-        "total_amount":       g["total_amount"],
-        "avg_invoice_amount": g["avg_invoice_amount"],
-        "approval_rate_pct":  g["approval_rate_pct"],
-        "rejection_rate_pct": g["rejection_rate_pct"],
-        "po_match_rate_pct":  g["po_match_rate_pct"],
+        "total_invoices":        g["total_invoices"],
+        "total_amount":          g["total_amount"],
+        "avg_invoice_amount":    g["avg_invoice_amount"],
+        "approval_rate_pct":     g["approval_rate_pct"],
+        "rejection_rate_pct":    g["rejection_rate_pct"],
+        "po_match_rate_pct":     g["po_match_rate_pct"],
         "mom_amount_change_pct": mom.get("mom_amount_change_pct"),
         "current_month_total":   mom["current_month_total"],
         "previous_month_total":  mom["previous_month_total"],
-        "top_vendor": kpis["top_vendors"][0]["vendor_name"] if kpis["top_vendors"] else None,
+        "top_vendor":       kpis["top_vendors"][0]["vendor_name"] if kpis["top_vendors"] else None,
         "top_vendor_total": kpis["top_vendors"][0]["total_amount"] if kpis["top_vendors"] else 0,
     }
 
-    # Strip internal data keys from anomalies — Gemini only needs type + severity + message
     slim_anomalies = [
         {"severity": a["severity"], "type": a["type"], "message": a["message"]}
         for a in anomalies
@@ -427,51 +400,51 @@ def generate_insights(kpis: dict, anomalies: list[dict]) -> list[str]:
         if isinstance(insights, list) and insights:
             return [str(i) for i in insights[:8]]
     except Exception as exc:
-        logger.warning("Gemini insight generation failed: %s — using fallback", exc)
+        logger.warning("Gemini insight generation failed: %s -- using fallback", exc)
 
     return _fallback_insights(kpis, anomalies)
 
 
 # =============================================================================
-# 4. Rule-based fallback (no Gemini at all — always works)
+# 4. Rule-based fallback (no Gemini at all)
 # =============================================================================
 
 def _fallback_insights(kpis: dict, anomalies: list[dict]) -> list[str]:
-    """Convert pre-detected anomalies + KPIs into plain-English bullet strings."""
-    g      = kpis["global"]
-    mom    = kpis["mom"]
-    out    = []
+    g   = kpis["global"]
+    mom = kpis["mom"]
+    out = []
 
     if g["total_invoices"] == 0:
         return ["No invoice data available yet. Upload invoices to generate insights."]
 
-    # Portfolio headline
     out.append(
-        f"Portfolio: {g['total_invoices']} invoices totalling "
-        f"${g['total_amount']:,.0f} (avg ${g['avg_invoice_amount']:,.0f} each)."
+        "Portfolio: %d invoices totalling $%s (avg $%s each)."
+        % (g["total_invoices"],
+           "{:,.0f}".format(g["total_amount"]),
+           "{:,.0f}".format(g["avg_invoice_amount"]))
     )
 
-    # Emit anomaly messages directly (already human-readable)
     for a in anomalies[:6]:
         icon = "🚨" if a["severity"] == "HIGH" else ("⚠️" if a["severity"] == "MEDIUM" else "ℹ️")
-        out.append(f"{icon} {a['message']}")
+        out.append("%s %s" % (icon, a["message"]))
 
-    # MoM summary if no spike anomaly was already included
     if not any(a["type"] in ("mom_spend_spike", "mom_spend_drop") for a in anomalies):
         mom_pct = mom.get("mom_amount_change_pct")
         if mom_pct is not None:
-            direction = f"+{mom_pct:.1f}%" if mom_pct >= 0 else f"{mom_pct:.1f}%"
+            direction = "+%.1f%%" % mom_pct if mom_pct >= 0 else "%.1f%%" % mom_pct
             out.append(
-                f"Month-over-month spend: {direction} "
-                f"(${mom['previous_month_total']:,.0f} → ${mom['current_month_total']:,.0f})."
+                "Month-over-month spend: %s ($%s -> $%s)."
+                % (direction,
+                   "{:,.0f}".format(mom["previous_month_total"]),
+                   "{:,.0f}".format(mom["current_month_total"]))
             )
 
-    # Top vendor if not already covered
     if kpis["top_vendors"] and not any(a["type"] == "vendor_price_spike" for a in anomalies):
         tv = kpis["top_vendors"][0]
         out.append(
-            f"Top vendor: {tv['vendor_name']} — "
-            f"{tv['invoice_count']} invoice(s), ${tv['total_amount']:,.0f} total."
+            "Top vendor: %s — %d invoice(s), $%s total."
+            % (tv["vendor_name"], tv["invoice_count"],
+               "{:,.0f}".format(tv["total_amount"]))
         )
 
     return out[:8]
@@ -482,10 +455,6 @@ def _fallback_insights(kpis: dict, anomalies: list[dict]) -> list[str]:
 # =============================================================================
 
 def get_executive_summary(force_refresh: bool = False) -> dict:
-    """
-    Returns {insights, anomalies, generated_at, cached}.
-    Anomalies are included so the frontend can optionally render them separately.
-    """
     cache_key = "executive_summary"
 
     if not force_refresh:
@@ -506,7 +475,7 @@ def get_executive_summary(force_refresh: bool = False) -> dict:
 
     result = {
         "insights":     insights,
-        "anomalies":    anomalies,       # structured flags for optional frontend use
+        "anomalies":    anomalies,
         "generated_at": kpis.get("generated_at",
                         datetime.now(timezone.utc).isoformat()),
         "cached":       False,

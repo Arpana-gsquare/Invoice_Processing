@@ -63,7 +63,7 @@
           <label class="form-label form-label-sm mb-1">Risk Level</label>
           <select name="risk_flag" class="form-select form-select-sm">
             <option value="">All Risks</option>
-            {% for flag in ['SAFE','MODERATE','HIGH RISK','DUPLICATE'] %}
+            {% for flag in ['LOW RISK','MODERATE','HIGH RISK','DUPLICATE'] %}
             <option value="{{ flag }}" {% if filters.get('risk_flag')==flag %}selected{% endif %}>{{ flag }}</option>
             {% endfor %}
           </select>
@@ -151,7 +151,7 @@
           </td>
           <td>
             <span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">
-              {% if inv.risk_flag == 'SAFE' %}✅
+              {% if inv.risk_flag == 'LOW RISK' %}✅
               {% elif inv.risk_flag == 'MODERATE' %}⚠️
               {% elif inv.risk_flag == 'HIGH RISK' %}🚨
               {% else %}🔁{% endif %}

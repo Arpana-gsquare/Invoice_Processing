@@ -5,7 +5,7 @@ Evaluates each invoice across five dimensions:
   2. Anomaly Detection     - amount > mean + N*std vs historical data
   3. Vendor Risk Scoring   - derived from payment history, inconsistencies
   4. PO Compliance Check   - invoice vs PO amount / match status
-  5. Final Classification  - SAFE | MODERATE | HIGH RISK | DUPLICATE
+  5. Final Classification  - LOW RISK | MODERATE | HIGH RISK | DUPLICATE
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def analyse_invoice(invoice_data: dict, existing_id: str | None = None) -> dict[
                        (used to exclude self from duplicate checks after re-analysis).
 
     Returns a dict with keys:
-        risk_flag     - SAFE | MODERATE | HIGH RISK | DUPLICATE
+        risk_flag     - LOW RISK | MODERATE | HIGH RISK | DUPLICATE
         risk_score    - 0-100
         risk_reasons  - list of human-readable strings
         duplicate_of  - invoice_id string if duplicate, else None
@@ -354,4 +354,4 @@ def _classify(score: int, duplicate_of: str | None) -> str:
         return "HIGH RISK"
     if score >= 30:
         return "MODERATE"
-    return "SAFE"
+    return "LOW RISK"

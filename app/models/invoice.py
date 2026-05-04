@@ -22,7 +22,7 @@ CATEGORIES = (
     "maintenance", "other",
 )
 STATUSES = ("pending", "approved", "rejected")
-RISK_FLAGS = ("SAFE", "MODERATE", "HIGH RISK", "DUPLICATE")
+RISK_FLAGS = ("LOW RISK", "MODERATE", "HIGH RISK", "DUPLICATE")
 
 
 class Invoice:
@@ -47,7 +47,7 @@ class Invoice:
 
     @property
     def risk_flag(self) -> str:
-        return self._doc.get("risk_flag", "SAFE")
+        return self._doc.get("risk_flag", "LOW RISK")
 
     @property
     def status(self) -> str:
@@ -86,7 +86,7 @@ class Invoice:
         data.setdefault("upload_timestamp", datetime.now(timezone.utc))
         data.setdefault("status", "pending")
         data.setdefault("status_history", [])
-        data.setdefault("risk_flag", "SAFE")
+        data.setdefault("risk_flag", "LOW RISK")
         data.setdefault("risk_score", 0)
         data.setdefault("risk_reasons", [])
         data.setdefault("attachments", [])

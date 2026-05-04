@@ -17,27 +17,23 @@ def index():
     db  = get_db()
     now = datetime.now(timezone.utc)
 
-    # ── Single-pass KPI aggregation (replaces 9 separate count_documents) ──
+    # ── Single-pass KPI aggregation ────────────────────────────────────────
     kpi_pipeline = [
         {"$match": {"is_deleted": {"$ne": True}}},
         {"$group": {
             "_id": None,
-            # Status counts
             "total_invoices":  {"$sum": 1},
             "pending":         {"$sum": {"$cond": [{"$eq": ["$status", "pending"]},  1, 0]}},
             "approved":        {"$sum": {"$cond": [{"$eq": ["$status", "approved"]}, 1, 0]}},
             "rejected":        {"$sum": {"$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]}},
-            # Risk counts
-            "safe_count":      {"$sum": {"$cond": [{"$eq": ["$risk_flag", "SAFE"]},      1, 0]}},
+            "low_risk_count":  {"$sum": {"$cond": [{"$eq": ["$risk_flag", "LOW RISK"]},  1, 0]}},
             "moderate_count":  {"$sum": {"$cond": [{"$eq": ["$risk_flag", "MODERATE"]},  1, 0]}},
             "high_risk_count": {"$sum": {"$cond": [{"$eq": ["$risk_flag", "HIGH RISK"]}, 1, 0]}},
             "duplicate_count": {"$sum": {"$cond": [{"$eq": ["$risk_flag", "DUPLICATE"]}, 1, 0]}},
-            # Financial
             "total_amount":    {"$sum": "$total_amount"},
             "approved_amount": {"$sum": {"$cond": [
                 {"$eq": ["$status", "approved"]}, "$total_amount", 0
             ]}},
-            # Overdue: pending + due_date < now
             "overdue": {"$sum": {"$cond": [
                 {"$and": [
                     {"$eq":  ["$status", "pending"]},
@@ -55,7 +51,7 @@ def index():
         "pending":         k.get("pending",         0),
         "approved":        k.get("approved",        0),
         "rejected":        k.get("rejected",        0),
-        "safe_count":      k.get("safe_count",      0),
+        "low_risk_count":  k.get("low_risk_count",  0),
         "moderate_count":  k.get("moderate_count",  0),
         "high_risk_count": k.get("high_risk_count", 0),
         "duplicate_count": k.get("duplicate_count", 0),

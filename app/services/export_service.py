@@ -66,7 +66,7 @@ def export_excel(invoices: list[Invoice]) -> io.BytesIO:
 
     # ── Data rows ─────────────────────────────────────────────────────────
     risk_colors = {
-        "SAFE":      "C6EFCE",
+        "LOW RISK":      "C6EFCE",
         "MODERATE":  "FFEB9C",
         "HIGH RISK": "FFC7CE",
         "DUPLICATE": "E2EFDA",
@@ -89,7 +89,7 @@ def export_excel(invoices: list[Invoice]) -> io.BytesIO:
             risk_col = next((i for i, (h, _) in enumerate(EXPORT_COLUMNS, 1) if h == "Risk Flag"), None)
             status_col = next((i for i, (h, _) in enumerate(EXPORT_COLUMNS, 1) if h == "Status"), None)
             if col_idx == risk_col:
-                flag = d.get("risk_flag", "SAFE")
+                flag = d.get("risk_flag", "LOW RISK")
                 color = risk_colors.get(flag, "FFFFFF")
                 cell.fill = PatternFill("solid", fgColor=color)
             if col_idx == status_col:
