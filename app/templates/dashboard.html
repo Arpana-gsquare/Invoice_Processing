@@ -101,6 +101,8 @@
           <a href="#" class="alert-link ms-2"
              onclick="loadExecutiveSummary(true);return false;">Retry</a>
         </div>
+        <!-- Anomaly summary pills -->
+        <div id="execAnomalySummary" style="display:none;"></div>
         <!-- Insights -->
         <ul id="execInsightsList" class="mb-0"
             style="display:none; padding-left:1.25rem; line-height:1.8;">
@@ -295,11 +297,42 @@ function setLoading(on) {
   }
 }
 
+function severityPill(sev) {
+  const cfg = {
+    HIGH:   { bg: '#FEE2E2', color: '#991B1B', icon: '🚨' },
+    MEDIUM: { bg: '#FEF3C7', color: '#92400E', icon: '⚠️' },
+    LOW:    { bg: '#F0F9FF', color: '#0369A1', icon: 'ℹ️' },
+  }[sev] || { bg: '#F1F5F9', color: '#475569', icon: '' };
+  return `<span style="display:inline-flex;align-items:center;gap:.2rem;padding:.1rem .45rem;
+    border-radius:20px;font-size:.65rem;font-weight:600;background:${cfg.bg};color:${cfg.color};
+    margin-right:.4rem;vertical-align:middle;">${cfg.icon} ${sev}</span>`;
+}
+
 function renderInsights(data) {
   execList.innerHTML = '';
+
+  // ── Anomaly summary pills (if any HIGH/MEDIUM flags) ──────────────────
+  const anomalies = (data.anomalies || []).filter(a => a.severity !== 'LOW');
+  const anomalyDiv = document.getElementById('execAnomalySummary');
+  if (anomalyDiv) {
+    if (anomalies.length > 0) {
+      const high = anomalies.filter(a => a.severity === 'HIGH').length;
+      const med  = anomalies.filter(a => a.severity === 'MEDIUM').length;
+      let html = '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem;">';
+      if (high) html += `<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;background:#FEE2E2;color:#991B1B;">🚨 ${high} HIGH</span>`;
+      if (med)  html += `<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;background:#FEF3C7;color:#92400E;">⚠️ ${med} MEDIUM</span>`;
+      html += '<span style="font-size:.75rem;color:#64748B;align-self:center;">anomalies detected</span></div>';
+      anomalyDiv.innerHTML = html;
+      anomalyDiv.style.display = '';
+    } else {
+      anomalyDiv.style.display = 'none';
+    }
+  }
+
+  // ── AI insight lines ───────────────────────────────────────────────────
   (data.insights || []).forEach(insight => {
     const li = document.createElement('li');
-    li.style.cssText = 'font-size:.875rem; color:#334155; margin-bottom:.35rem;';
+    li.style.cssText = 'font-size:.875rem; color:#334155; margin-bottom:.4rem;';
     li.textContent = insight;
     execList.appendChild(li);
   });
@@ -308,15 +341,12 @@ function renderInsights(data) {
 
   // Timestamp
   if (data.generated_at) {
-    execTimestamp.textContent = 'Last updated: ' + timeAgo(data.generated_at);
+    execTimestamp.dataset.iso   = data.generated_at;
+    execTimestamp.textContent   = 'Last updated: ' + timeAgo(data.generated_at);
   }
 
   // Cache badge
-  if (data.cached) {
-    execCacheBadge.style.display = '';
-  } else {
-    execCacheBadge.style.display = 'none';
-  }
+  execCacheBadge.style.display = data.cached ? '' : 'none';
 }
 
 async function loadExecutiveSummary(forceRefresh = false) {
