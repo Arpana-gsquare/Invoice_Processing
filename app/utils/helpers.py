@@ -43,9 +43,10 @@ def paginate(total: int, page: int, per_page: int) -> dict:
 def build_filters(args: dict) -> dict:
     """
     Convert URL query parameters into a MongoDB filter dict.
-    Supported params: vendor, risk_flag, status, date_from, date_to
+    Supported params: vendor, risk_flag, exclude_risk_flag, status,
+                      date_from, date_to, search, overdue
     """
-    from datetime import datetime
+    from datetime import datetime, timezone
     query: dict = {}
 
     if args.get("vendor"):
@@ -53,6 +54,10 @@ def build_filters(args: dict) -> dict:
 
     if args.get("risk_flag"):
         query["risk_flag"] = args["risk_flag"]
+
+    # Exclude a specific risk flag (e.g. exclude_risk_flag=DUPLICATE)
+    if args.get("exclude_risk_flag"):
+        query["risk_flag"] = {"$ne": args["exclude_risk_flag"]}
 
     if args.get("status"):
         query["status"] = args["status"]
@@ -78,5 +83,11 @@ def build_filters(args: dict) -> dict:
             {"invoice_number": {"$regex": term, "$options": "i"}},
             {"vendor_name": {"$regex": term, "$options": "i"}},
         ]
+
+    # Overdue: pending invoices where due_date exists, is not null, and is in the past
+    if args.get("overdue") == "1":
+        now = datetime.now(timezone.utc)
+        query["due_date"] = {"$exists": True, "$ne": None, "$lt": now}
+        query["status"]   = "pending"
 
     return query

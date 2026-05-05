@@ -23,6 +23,26 @@
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h5 class="fw-bold mb-0"><i class="bi bi-receipt me-2 text-primary"></i>All Invoices
     <span class="badge bg-light text-muted ms-1" style="font-size:.75rem;">{{ pagination.total }}</span>
+    {% if filters.get('status') %}
+      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEF3C7;color:#92400E;">
+        {{ filters.get('status') | title }}
+      </span>
+    {% endif %}
+    {% if filters.get('risk_flag') %}
+      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#E0E7FF;color:#3730A3;">
+        {{ filters.get('risk_flag') }}
+      </span>
+    {% endif %}
+    {% if filters.get('overdue') == '1' %}
+      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEE2E2;color:#991B1B;">
+        Overdue
+      </span>
+    {% endif %}
+    {% if filters.get('exclude_risk_flag') %}
+      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#F1F5F9;color:#64748B;border:1px solid #E2E8F0;">
+        Excl. {{ filters.get('exclude_risk_flag') }}
+      </span>
+    {% endif %}
   </h5>
   <div class="d-flex gap-2">
     <div class="dropdown">
@@ -96,6 +116,13 @@
           </a>
         </div>
       </div>
+      {# Preserve special filters through form submissions #}
+      {% if filters.get('overdue') == '1' %}
+        <input type="hidden" name="overdue" value="1">
+      {% endif %}
+      {% if filters.get('exclude_risk_flag') %}
+        <input type="hidden" name="exclude_risk_flag" value="{{ filters.get('exclude_risk_flag') }}">
+      {% endif %}
     </form>
   </div>
 </div>
