@@ -4,9 +4,8 @@ PO Matching Engine
 Matches an invoice to the best available Purchase Order.
 
 Match statuses:
-  MATCHED        - strong match on header + line items (score >= 80)
-  PARTIAL_MATCH  - header matches but line items diverge (score 50-79)
-  MISMATCH       - PO found but key values conflict (score 20-49)
+  MATCHED        - sufficient match, approval workflow auto-initiated (score >= 50)
+  PARTIAL_MATCH  - weak match, manual review advised (score 20-49)
   NO_PO_FOUND    - no candidate PO located in the database
 
 Score breakdown (0-100):
@@ -75,13 +74,10 @@ def match_invoice_to_po(invoice_data: dict) -> dict[str, Any]:
     score = best_result["score"]
     details = best_result["details"]
 
-    if score >= 80:
+    if score >= 50:
         status = "MATCHED"
-    elif score >= 50:
-        status = "PARTIAL_MATCH"
-    elif score >= 20:
-        status = "MISMATCH"
     else:
+        # score < 50 — treat as no match regardless of how close it got
         return _no_po_result()
 
     return {
@@ -302,10 +298,6 @@ def _no_po_result() -> dict:
 
 
 def _status_from_score(score: int) -> str:
-    if score >= 80:
-        return "MATCHED"
     if score >= 50:
-        return "PARTIAL_MATCH"
-    if score >= 20:
-        return "MISMATCH"
+        return "MATCHED"
     return "NO_PO_FOUND"

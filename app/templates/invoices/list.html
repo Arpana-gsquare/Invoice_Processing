@@ -1,18 +1,56 @@
 {% extends "base.html" %}
 {% block extra_css %}
 <style>
-  .po-match-badge, .prop-badge {
+  /* ── PO badges ─────────────────────────────────────────── */
+  .po-match-badge {
     display: inline-flex; align-items: center; gap: .3rem;
     padding: .18rem .55rem; border-radius: 20px;
     font-size: .72rem; font-weight: 600; white-space: nowrap;
   }
-  .po-matched,   .prop-matched  { background: #D1FAE5; color: #065F46; }
-  .po-partial,   .prop-partial  { background: #FEF3C7; color: #92400E; }
-  .po-mismatch,  .prop-mismatch { background: #FEE2E2; color: #991B1B; }
-  .po-missing,   .prop-missing  { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
-  .po-pending,   .prop-pending  { background: #EFF6FF; color: #1E40AF; border: 1px dashed #BFDBFE; }
+  .po-matched { background: #D1FAE5; color: #065F46; }
+  .po-nomatch { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
+
+  /* ── Workflow status badges ────────────────────────────── */
+  .wf-badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .22rem .65rem; border-radius: 20px;
+    font-size: .75rem; font-weight: 600; white-space: nowrap;
+    cursor: pointer; transition: opacity .15s; border: none;
+    background: none;
+  }
+  .wf-badge:hover { opacity: .75; }
+  .wf-l1       { background: #FEF3C7; color: #92400E; }
+  .wf-l2       { background: #DBEAFE; color: #1E40AF; }
+  .wf-approved { background: #D1FAE5; color: #065F46; }
+  .wf-rejected { background: #FEE2E2; color: #991B1B; }
+  .wf-plain    { background: #F1F5F9; color: #64748B; }
+
+  /* ── Workflow stepper ──────────────────────────────────── */
+  .wf-step { display: flex; align-items: flex-start; gap: .75rem;
+             padding: .7rem 0; position: relative; }
+  .wf-step:not(:last-child)::after {
+    content: ''; position: absolute; left: 15px; top: 38px;
+    width: 2px; height: calc(100% - 8px); background: #E2E8F0; z-index: 0;
+  }
+  .wf-step.s-done:not(:last-child)::after { background: #10B981; }
+  .step-dot {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; z-index: 1;
+    display: flex; align-items: center; justify-content: center; font-size: .85rem;
+  }
+  .step-dot.done   { background: #10B981; color: #fff; }
+  .step-dot.active { background: #2563EB; color: #fff; }
+  .step-dot.reject { background: #EF4444; color: #fff; }
+  .step-dot.wait   { background: #E2E8F0; color: #94A3B8; }
+  .step-body { flex: 1; padding-top: .05rem; }
+  .step-title { font-weight: 600; font-size: .88rem; color: #1E293B; }
+  .step-sub   { font-size: .73rem; margin-top: .1rem; }
+  .step-sub.c-done   { color: #059669; }
+  .step-sub.c-active { color: #2563EB; }
+  .step-sub.c-reject { color: #DC2626; }
+  .step-sub.c-wait   { color: #94A3B8; }
 </style>
 {% endblock %}
+
 {% block title %}Invoices – {{ APP_NAME }}{% endblock %}
 {% block breadcrumb %}
   <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
@@ -21,7 +59,8 @@
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
-  <h5 class="fw-bold mb-0"><i class="bi bi-receipt me-2 text-primary"></i>All Invoices
+  <h5 class="fw-bold mb-0">
+    <i class="bi bi-receipt me-2 text-primary"></i>All Invoices
     <span class="badge bg-light text-muted ms-1" style="font-size:.75rem;">{{ pagination.total }}</span>
     {% if filters.get('status') %}
       <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEF3C7;color:#92400E;">
@@ -64,7 +103,7 @@
   </div>
 </div>
 
-<!-- ── Filters ──────────────────────────────────────────────────── -->
+<!-- ── Filters ─────────────────────────────────────────────── -->
 <div class="card mb-3">
   <div class="card-body p-3">
     <form method="GET" action="{{ url_for('invoices.list_invoices') }}" id="filterForm">
@@ -108,26 +147,17 @@
                  value="{{ filters.get('date_to','') }}">
         </div>
         <div class="col-md-1 d-flex gap-1">
-          <button type="submit" class="btn btn-primary btn-sm w-100">
-            <i class="bi bi-funnel"></i>
-          </button>
-          <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-x"></i>
-          </a>
+          <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-funnel"></i></button>
+          <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x"></i></a>
         </div>
       </div>
-      {# Preserve special filters through form submissions #}
-      {% if filters.get('overdue') == '1' %}
-        <input type="hidden" name="overdue" value="1">
-      {% endif %}
-      {% if filters.get('exclude_risk_flag') %}
-        <input type="hidden" name="exclude_risk_flag" value="{{ filters.get('exclude_risk_flag') }}">
-      {% endif %}
+      {% if filters.get('overdue') == '1' %}<input type="hidden" name="overdue" value="1">{% endif %}
+      {% if filters.get('exclude_risk_flag') %}<input type="hidden" name="exclude_risk_flag" value="{{ filters.get('exclude_risk_flag') }}">{% endif %}
     </form>
   </div>
 </div>
 
-<!-- ── Table ─────────────────────────────────────────────────────── -->
+<!-- ── Table ───────────────────────────────────────────────── -->
 <div class="card">
   <div class="table-responsive">
     <table class="table mb-0">
@@ -141,7 +171,6 @@
           <th>Amount</th>
           <th>Risk</th>
           <th>PO Match</th>
-          <th>Proposal</th>
           <th>Status</th>
           <th>Days</th>
           <th>Actions</th>
@@ -150,115 +179,119 @@
       <tbody>
         {% for inv in invoices %}
         {% set d = inv.to_dict(full=False) %}
-        <tr onclick="rowClick(event, '{{ inv.id }}')" style="cursor:pointer;">
+        {% set wf_level = d.get('workflow_level') %}
+        <tr onclick="rowClick(event,'{{ inv.id }}')" style="cursor:pointer;">
+
           <td onclick="event.stopPropagation()">
             <input type="checkbox" class="row-check" value="{{ inv.id }}">
           </td>
+
           <td>
             <span class="fw-semibold text-primary">{{ inv.invoice_number or '—' }}</span>
-            {% if inv.is_overdue %}
-            <span class="overdue-indicator ms-1" title="Overdue"></span>
-            {% endif %}
+            {% if inv.is_overdue %}<span class="overdue-indicator ms-1" title="Overdue"></span>{% endif %}
           </td>
+
           <td>
             <div class="small fw-semibold">{{ inv.vendor_name or '—' }}</div>
-            {% if d.get('category') %}
-            <div class="text-muted" style="font-size:.72rem;">{{ d.category }}</div>
-            {% endif %}
+            {% if d.get('category') %}<div class="text-muted" style="font-size:.72rem;">{{ d.category }}</div>{% endif %}
           </td>
-          <td class="small text-muted">
-            {{ d.get('invoice_date','')[:10] if d.get('invoice_date') else '—' }}
-          </td>
+
+          <td class="small text-muted">{{ d.get('invoice_date','')[:10] if d.get('invoice_date') else '—' }}</td>
+
           <td class="small {% if inv.is_overdue %}text-danger fw-semibold{% else %}text-muted{% endif %}">
             {{ d.get('due_date','')[:10] if d.get('due_date') else '—' }}
           </td>
+
           <td class="fw-semibold">
-            {{ d.get('currency_symbol','$') }}{{ "{:,.2f}".format(inv.total_amount) }}
+            {{ d.get('currency_symbol','₹') }}{{ "{:,.2f}".format(inv.total_amount) }}
             <div class="text-muted" style="font-size:.72rem;">{{ d.get('currency','') }}</div>
           </td>
+
+          {# Risk — LOW RISK displays as PROCEED #}
           <td>
             <span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">
-              {% if inv.risk_flag == 'LOW RISK' %}✅
-              {% elif inv.risk_flag == 'MODERATE' %}⚠️
-              {% elif inv.risk_flag == 'HIGH RISK' %}🚨
-              {% else %}🔁{% endif %}
-              {{ inv.risk_flag }}
+              {% if inv.risk_flag == 'LOW RISK' %}✅ PROCEED
+              {% elif inv.risk_flag == 'MODERATE' %}⚠️ MODERATE
+              {% elif inv.risk_flag == 'HIGH RISK' %}🚨 HIGH RISK
+              {% else %}🔁 DUPLICATE{% endif %}
             </span>
           </td>
+
+          {# PO Match — only two states: Match / No Match #}
           <td>
             {% set po_s = d.get('po_match_status') %}
             {% if po_s == 'MATCHED' %}
-              <span class="po-match-badge po-matched" title="Invoice matched to a Purchase Order">
-                <i class="bi bi-check-circle-fill"></i> PO Matched
-              </span>
-            {% elif po_s == 'PARTIAL_MATCH' %}
-              <span class="po-match-badge po-partial" title="Partial match — review differences">
-                <i class="bi bi-exclamation-circle-fill"></i> Partial Match
-              </span>
-            {% elif po_s == 'MISMATCH' %}
-              <span class="po-match-badge po-mismatch" title="Invoice conflicts with linked PO">
-                <i class="bi bi-x-circle-fill"></i> PO Mismatch
-              </span>
-            {% elif po_s == 'NO_PO_FOUND' %}
-              <span class="po-match-badge po-missing" title="No Purchase Order found for this invoice">
-                <i class="bi bi-dash-circle"></i> No PO Found
+              <span class="po-match-badge po-matched" title="PO matched (score ≥ 50)">
+                <i class="bi bi-check-circle-fill"></i> Match
               </span>
             {% else %}
-              <span class="po-match-badge po-pending" title="PO matching not yet run">
-                <i class="bi bi-clock"></i> Not Checked
+              <span class="po-match-badge po-nomatch"
+                    title="{% if po_s == 'PARTIAL_MATCH' %}Partial match (score 20–49) — manual review needed{% elif po_s == 'NO_PO_FOUND' %}No PO found{% else %}Not checked{% endif %}">
+                <i class="bi bi-dash-circle"></i> No Match{% if po_s == 'PARTIAL_MATCH' %} ⚠{% endif %}
               </span>
             {% endif %}
           </td>
-          <td>
-            {% set pr_s = d.get('proposal_match_status') %}
-            {% if pr_s == 'MATCHED' %}
-              <span class="prop-badge prop-matched" title="Invoice matched to a Proposal">
-                <i class="bi bi-file-earmark-check-fill"></i> Matched
-              </span>
-            {% elif pr_s == 'PARTIAL_MATCH' %}
-              <span class="prop-badge prop-partial" title="Partial proposal match — review AI insights">
-                <i class="bi bi-file-earmark-minus-fill"></i> Partial
-              </span>
-            {% elif pr_s == 'MISMATCH' %}
-              <span class="prop-badge prop-mismatch" title="Invoice conflicts with linked proposal">
-                <i class="bi bi-file-earmark-x-fill"></i> Mismatch
-              </span>
-            {% elif pr_s == 'NO_PROPOSAL' %}
-              <span class="prop-badge prop-missing" title="No proposal found for this invoice">
-                <i class="bi bi-file-earmark-dash"></i> No Proposal
-              </span>
+
+          {# Status — L1 Approval / L2 Approval / Approved / Rejected (no "Pending" word) #}
+          <td onclick="event.stopPropagation()">
+            {% if inv.status == 'pending' %}
+              {% if wf_level == 2 %}
+                <button class="wf-badge wf-l2"
+                        onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
+                        title="Click to view approval flow">
+                  <i class="bi bi-hourglass-split"></i> L2 Approval
+                </button>
+              {% else %}
+                <button class="wf-badge wf-l1"
+                        onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
+                        title="Click to view approval flow">
+                  <i class="bi bi-hourglass-split"></i> L1 Approval
+                </button>
+              {% endif %}
+            {% elif inv.status == 'approved' %}
+              <button class="wf-badge wf-approved"
+                      onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
+                      title="Click to view approval flow">
+                <i class="bi bi-check-circle-fill"></i> Approved
+              </button>
             {% else %}
-              <span class="prop-badge prop-pending" title="Proposal matching not yet run">
-                <i class="bi bi-clock"></i> Not Checked
-              </span>
+              <button class="wf-badge wf-rejected"
+                      onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
+                      title="Click to view approval flow">
+                <i class="bi bi-x-circle-fill"></i> Rejected
+              </button>
             {% endif %}
           </td>
-          <td>
-            <span class="status-badge badge-{{ inv.status }}">{{ inv.status }}</span>
-          </td>
+
           <td class="small text-muted text-center">
             {% if inv.days_since_invoice is not none %}{{ inv.days_since_invoice }}d{% else %}—{% endif %}
           </td>
+
           <td onclick="event.stopPropagation()">
             <div class="d-flex gap-1">
               <a href="{{ url_for('invoices.detail', invoice_id=inv.id) }}"
                  class="btn btn-sm btn-outline-primary py-0 px-2" title="View">
                 <i class="bi bi-eye"></i>
               </a>
-              {% if current_user.can_approve() and inv.status == 'pending' %}
-              <form method="POST" action="{{ url_for('invoices.approve', invoice_id=inv.id) }}" class="d-inline">
-                <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" title="Approve"
-                        onclick="return confirm('Approve this invoice?')">
-                  <i class="bi bi-check-lg"></i>
-                </button>
-              </form>
+              {% if wf_level == 1 and current_user.role in ('accountant','admin') %}
+              <button class="btn btn-sm btn-outline-success py-0 px-2" title="Approve L1"
+                      onclick="quickApprove('{{ inv.id }}',1)">
+                <i class="bi bi-check-lg"></i>
+              </button>
+              {% endif %}
+              {% if wf_level == 2 and current_user.is_admin() %}
+              <button class="btn btn-sm btn-success py-0 px-2" title="Final Approve L2"
+                      onclick="quickApprove('{{ inv.id }}',2)">
+                <i class="bi bi-check2-all"></i>
+              </button>
               {% endif %}
             </div>
           </td>
+
         </tr>
         {% else %}
         <tr>
-          <td colspan="12" class="text-center py-5">
+          <td colspan="11" class="text-center py-5">
             <i class="bi bi-inbox" style="font-size:2.5rem;color:#CBD5E1;"></i>
             <p class="text-muted mt-2 mb-1">No invoices found.</p>
             <a href="{{ url_for('invoices.upload') }}" class="btn btn-primary btn-sm">Upload your first invoice</a>
@@ -269,7 +302,6 @@
     </table>
   </div>
 
-  <!-- ── Pagination ────────────────────────────────────────────── -->
   {% if pagination.total_pages > 1 %}
   <div class="card-footer d-flex align-items-center justify-content-between py-2">
     <small class="text-muted">
@@ -277,38 +309,167 @@
       {{ [pagination.page*pagination.per_page, pagination.total] | min }}
       of {{ pagination.total }}
     </small>
-    <nav>
-      <ul class="pagination pagination-sm mb-0">
-        {% if pagination.has_prev %}
-        <li class="page-item">
-          <a class="page-link" href="?page={{ pagination.prev_page }}&{{ request.query_string.decode().replace('page='+request.args.get('page','1'),'') }}">‹</a>
-        </li>
-        {% endif %}
-        {% for p in range([1, pagination.page-2] | max, [pagination.total_pages+1, pagination.page+3] | min) %}
-        <li class="page-item {% if p == pagination.page %}active{% endif %}">
-          <a class="page-link" href="?page={{ p }}&{{ request.query_string.decode() | replace('page='+request.args.get('page','1'),'') }}">{{ p }}</a>
-        </li>
-        {% endfor %}
-        {% if pagination.has_next %}
-        <li class="page-item">
-          <a class="page-link" href="?page={{ pagination.next_page }}&{{ request.query_string.decode() | replace('page='+request.args.get('page','1'),'') }}">›</a>
-        </li>
-        {% endif %}
-      </ul>
-    </nav>
+    <nav><ul class="pagination pagination-sm mb-0">
+      {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ pagination.prev_page }}&{{ request.query_string.decode().replace('page='+request.args.get('page','1'),'') }}">‹</a>
+      </li>
+      {% endif %}
+      {% for p in range([1, pagination.page-2] | max, [pagination.total_pages+1, pagination.page+3] | min) %}
+      <li class="page-item {% if p == pagination.page %}active{% endif %}">
+        <a class="page-link" href="?page={{ p }}&{{ request.query_string.decode() | replace('page='+request.args.get('page','1'),'') }}">{{ p }}</a>
+      </li>
+      {% endfor %}
+      {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ pagination.next_page }}&{{ request.query_string.decode() | replace('page='+request.args.get('page','1'),'') }}">›</a>
+      </li>
+      {% endif %}
+    </ul></nav>
   </div>
   {% endif %}
 </div>
+
+<!-- ═══ Workflow Stepper Modal ═══ -->
+<div class="modal fade" id="wfModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:460px;">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-1">
+        <div>
+          <h6 class="modal-title fw-bold mb-0">Approval Workflow</h6>
+          <div class="text-muted" id="wfModalSub" style="font-size:.78rem;"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2 pb-3" id="wfModalBody">
+        <div class="text-center py-4">
+          <div class="spinner-border spinner-border-sm text-primary"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden forms used by quickApprove() -->
+<div id="qForms" style="display:none;"></div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function rowClick(event, invoiceId) {
-  if (event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON' || event.target.closest('form')) return;
-  window.location = '/invoices/' + invoiceId;
+/* ── Row navigation ───────────────────────────────────── */
+function rowClick(e, id) {
+  if (e.target.closest('button,input,a,form,.wf-badge')) return;
+  window.location = '/invoices/' + id;
 }
 function toggleAll(cb) {
   document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
+}
+
+/* ── Quick approve from list ──────────────────────────── */
+function quickApprove(invoiceId, level) {
+  var label = level === 1 ? 'L1 (first review)' : 'L2 (final)';
+  if (!confirm('Approve as ' + label + '?')) return;
+  var f = document.createElement('form');
+  f.method = 'POST';
+  f.action = '/invoices/' + invoiceId + '/workflow/approve';
+  document.getElementById('qForms').appendChild(f);
+  f.submit();
+}
+
+/* ── Workflow stepper modal ───────────────────────────── */
+function openWfModal(invoiceId, invoiceNum) {
+  var modalEl = document.getElementById('wfModal');
+  var modal   = bootstrap.Modal.getOrCreateInstance(modalEl);
+  document.getElementById('wfModalSub').textContent = invoiceNum || invoiceId;
+  document.getElementById('wfModalBody').innerHTML  =
+    '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+  modal.show();
+
+  fetch('/invoices/' + invoiceId + '/workflow')
+    .then(function(r){ return r.json(); })
+    .then(function(data){ document.getElementById('wfModalBody').innerHTML = buildStepper(data.workflow); })
+    .catch(function(){ document.getElementById('wfModalBody').innerHTML =
+      '<div class="alert alert-warning mb-0">Could not load workflow data.</div>'; });
+}
+
+/* ── Build stepper HTML ───────────────────────────────── */
+function buildStepper(wf) {
+  /* Determine each step state --------------------------------
+     step 0: Invoice Processed  — always done
+     step 1: L1 Approval
+     step 2: L2 Approval
+     step 3: Payment
+  */
+  var s1 = 'wait', s2 = 'wait', s3 = 'wait';
+  var m1 = 'Awaiting L1 review', m2 = 'Awaiting L2 review', m3 = 'Awaiting full approval';
+  var c1 = 'c-wait', c2 = 'c-wait', c3 = 'c-wait';
+  var conn0 = 'done', conn1 = '', conn2 = '';
+
+  if (wf) {
+    var l1 = wf.l1_status, l2 = wf.l2_status;
+
+    if (l1 === 'approved') {
+      s1 = 'done'; c1 = 'c-done'; conn1 = 'done';
+      m1 = 'Approved by ' + (wf.l1_actor_name || '—') + (wf.l1_acted_at ? ' · ' + fmtD(wf.l1_acted_at) : '');
+    } else if (l1 === 'rejected') {
+      s1 = 'reject'; c1 = 'c-reject';
+      m1 = 'Rejected by ' + (wf.l1_actor_name || '—') + (wf.l1_acted_at ? ' · ' + fmtD(wf.l1_acted_at) : '');
+    } else if (l1 === 'pending') {
+      s1 = 'active'; c1 = 'c-active';
+      m1 = 'Waiting for L1 review (Accountant)';
+    }
+
+    if (l2 === 'approved') {
+      s2 = 'done'; c2 = 'c-done'; conn2 = 'done';
+      m2 = 'Approved by ' + (wf.l2_actor_name || '—') + (wf.l2_acted_at ? ' · ' + fmtD(wf.l2_acted_at) : '');
+    } else if (l2 === 'rejected') {
+      s2 = 'reject'; c2 = 'c-reject';
+      m2 = 'Rejected by ' + (wf.l2_actor_name || '—') + (wf.l2_acted_at ? ' · ' + fmtD(wf.l2_acted_at) : '');
+    } else if (l2 === 'pending') {
+      s2 = 'active'; c2 = 'c-active';
+      m2 = 'Waiting for L2 review (Admin / Finance Head)';
+    }
+
+    if (wf.final_status === 'approved') {
+      s3 = 'done'; c3 = 'c-done'; m3 = 'Ready for payment processing';
+    } else if (wf.final_status === 'rejected') {
+      s3 = 'reject'; c3 = 'c-reject'; m3 = 'Invoice rejected — payment blocked';
+    }
+  } else {
+    m1 = 'No workflow initiated yet';
+  }
+
+  return [
+    mkStep('done',  conn0, 'bi-file-earmark-check-fill', 'Invoice Processed',
+           'Uploaded &amp; AI-extracted', 'c-done'),
+    mkStep(s1, conn1, stepIco(s1), 'L1 Approval', esc(m1), c1),
+    mkStep(s2, conn2, stepIco(s2), 'L2 Approval', esc(m2), c2),
+    mkStep(s3, '',    stepIco(s3), 'Payment',      esc(m3), c3),
+  ].join('');
+}
+
+function mkStep(state, connState, ico, title, sub, subCls) {
+  return '<div class="wf-step s-' + connState + '">'
+    + '<div class="step-dot ' + state + '">' + ico + '</div>'
+    + '<div class="step-body">'
+    + '<div class="step-title">' + title + '</div>'
+    + '<div class="step-sub ' + subCls + '">' + sub + '</div>'
+    + '</div></div>';
+}
+
+function stepIco(state) {
+  if (state === 'done')   return '<i class="bi bi-check-lg"></i>';
+  if (state === 'reject') return '<i class="bi bi-x-lg"></i>';
+  if (state === 'active') return '<div class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;"></div>';
+  return '<i class="bi bi-dash"></i>';
+}
+
+function fmtD(iso) {
+  try { return new Date(iso).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+  catch(e) { return iso; }
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 </script>
 {% endblock %}

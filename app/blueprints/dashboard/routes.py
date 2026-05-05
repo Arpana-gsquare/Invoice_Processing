@@ -23,7 +23,13 @@ def index():
         {"$group": {
             "_id": None,
             "total_invoices":  {"$sum": 1},
-            "pending":         {"$sum": {"$cond": [{"$eq": ["$status", "pending"]},  1, 0]}},
+            # pending_approval = pending AND not a duplicate (duplicates excluded)
+            "pending_approval": {"$sum": {"$cond": [
+                {"$and": [
+                    {"$eq": ["$status", "pending"]},
+                    {"$ne": ["$risk_flag", "DUPLICATE"]},
+                ]}, 1, 0
+            ]}},
             "approved":        {"$sum": {"$cond": [{"$eq": ["$status", "approved"]}, 1, 0]}},
             "rejected":        {"$sum": {"$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]}},
             "low_risk_count":  {"$sum": {"$cond": [{"$eq": ["$risk_flag", "LOW RISK"]},  1, 0]}},
@@ -31,6 +37,7 @@ def index():
             "high_risk_count": {"$sum": {"$cond": [{"$eq": ["$risk_flag", "HIGH RISK"]}, 1, 0]}},
             "duplicate_count": {"$sum": {"$cond": [{"$eq": ["$risk_flag", "DUPLICATE"]}, 1, 0]}},
             "total_amount":    {"$sum": "$total_amount"},
+            # approved_amount = sum of approved invoice amounts (used for Payment tile)
             "approved_amount": {"$sum": {"$cond": [
                 {"$eq": ["$status", "approved"]}, "$total_amount", 0
             ]}},
@@ -47,17 +54,17 @@ def index():
     k = kpi_raw[0] if kpi_raw else {}
 
     stats = {
-        "total_invoices":  k.get("total_invoices",  0),
-        "pending":         k.get("pending",         0),
-        "approved":        k.get("approved",        0),
-        "rejected":        k.get("rejected",        0),
-        "low_risk_count":  k.get("low_risk_count",  0),
-        "moderate_count":  k.get("moderate_count",  0),
-        "high_risk_count": k.get("high_risk_count", 0),
-        "duplicate_count": k.get("duplicate_count", 0),
-        "total_amount":    k.get("total_amount",    0),
-        "approved_amount": k.get("approved_amount", 0),
-        "overdue":         k.get("overdue",         0),
+        "total_invoices":   k.get("total_invoices",   0),
+        "pending_approval": k.get("pending_approval",  0),
+        "approved":         k.get("approved",          0),
+        "rejected":         k.get("rejected",          0),
+        "low_risk_count":   k.get("low_risk_count",    0),
+        "moderate_count":   k.get("moderate_count",    0),
+        "high_risk_count":  k.get("high_risk_count",   0),
+        "duplicate_count":  k.get("duplicate_count",   0),
+        "total_amount":     k.get("total_amount",      0),
+        "approved_amount":  k.get("approved_amount",   0),
+        "overdue":          k.get("overdue",           0),
     }
 
     # ── Monthly trend (last 6 months) ──────────────────────────────────────

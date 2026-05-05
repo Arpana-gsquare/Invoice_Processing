@@ -40,9 +40,10 @@
   </div>
 
   <div class="col-6 col-md-3">
+    {# pending_approval excludes DUPLICATE-flagged invoices #}
     <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending', exclude_risk_flag='DUPLICATE') }}">
       <div class="stat-card card kpi-tile" style="border-left:4px solid #F59E0B;">
-        <div class="stat-value text-warning">{{ stats.pending }}</div>
+        <div class="stat-value text-warning">{{ stats.pending_approval }}</div>
         <div class="stat-label text-muted">Pending Approval</div>
       </div>
     </a>
@@ -75,16 +76,7 @@
     <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='LOW RISK') }}">
       <div class="stat-card card kpi-tile" style="border-left:4px solid #10B981;">
         <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.low_risk_count }}</div>
-        <div class="stat-label text-muted">LOW RISK</div>
-      </div>
-    </a>
-  </div>
-
-  <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='MODERATE') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #F59E0B;">
-        <div class="stat-value" style="font-size:1.5rem;color:#92400E;">{{ stats.moderate_count }}</div>
-        <div class="stat-label text-muted">MODERATE</div>
+        <div class="stat-label text-muted">PROCEED</div>
       </div>
     </a>
   </div>
@@ -103,6 +95,16 @@
       <div class="stat-card card kpi-tile" style="border-left:4px solid #6366F1;">
         <div class="stat-value" style="font-size:1.5rem;color:#3730A3;">{{ stats.duplicate_count }}</div>
         <div class="stat-label text-muted">DUPLICATE</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    {# Payment tile — all approved invoices ready for payment #}
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='approved') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #0891B2;">
+        <div class="stat-value" style="font-size:1.5rem;color:#0E7490;">{{ stats.approved }}</div>
+        <div class="stat-label text-muted">💳 Ready to Pay</div>
       </div>
     </a>
   </div>
