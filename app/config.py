@@ -36,7 +36,7 @@ class BaseConfig:
     MODERATE_RISK_THRESHOLD = int(os.environ.get("MODERATE_RISK_VENDOR_SCORE_THRESHOLD", 40))
 
     # ── App Meta ───────────────────────────────────────────────────────────
-    APP_NAME = os.environ.get("APP_NAME", "InvoiceIQ")
+    APP_NAME = os.environ.get("APP_NAME", "Invorator")
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@company.com")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@123456")
 
