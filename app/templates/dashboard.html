@@ -50,10 +50,10 @@
   </div>
 
   <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='approved') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #10B981;">
-        <div class="stat-value text-success">{{ stats.approved }}</div>
-        <div class="stat-label text-muted">Approved</div>
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', po_match_status='NO_PO_FOUND') }}">
+      <div class="stat-card card kpi-tile" style="border-left:4px solid #F43F5E;">
+        <div class="stat-value" style="color:#BE123C;">{{ stats.no_po_count }}</div>
+        <div class="stat-label text-muted">No PO Match</div>
       </div>
     </a>
   </div>

@@ -69,7 +69,12 @@
     {% endif %}
     {% if filters.get('risk_flag') %}
       <span class="badge ms-1 px-2" style="font-size:.72rem;background:#E0E7FF;color:#3730A3;">
-        {{ filters.get('risk_flag') }}
+        {% if filters.get('risk_flag') == 'LOW RISK' %}PROCEED{% else %}{{ filters.get('risk_flag') }}{% endif %}
+      </span>
+    {% endif %}
+    {% if filters.get('po_match_status') %}
+      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEE2E2;color:#BE123C;">
+        No PO Match
       </span>
     {% endif %}
     {% if filters.get('overdue') == '1' %}
@@ -153,6 +158,7 @@
       </div>
       {% if filters.get('overdue') == '1' %}<input type="hidden" name="overdue" value="1">{% endif %}
       {% if filters.get('exclude_risk_flag') %}<input type="hidden" name="exclude_risk_flag" value="{{ filters.get('exclude_risk_flag') }}">{% endif %}
+      {% if filters.get('po_match_status') %}<input type="hidden" name="po_match_status" value="{{ filters.get('po_match_status') }}">{% endif %}
     </form>
   </div>
 </div>
@@ -217,7 +223,7 @@
             </span>
           </td>
 
-          {# PO Match — only two states: Match / No Match #}
+          {# PO Match — only show badge when matched; empty otherwise #}
           <td>
             {% set po_s = d.get('po_match_status') %}
             {% if po_s == 'MATCHED' %}
@@ -225,10 +231,7 @@
                 <i class="bi bi-check-circle-fill"></i> Match
               </span>
             {% else %}
-              <span class="po-match-badge po-nomatch"
-                    title="{% if po_s == 'PARTIAL_MATCH' %}Partial match (score 20–49) — manual review needed{% elif po_s == 'NO_PO_FOUND' %}No PO found{% else %}Not checked{% endif %}">
-                <i class="bi bi-dash-circle"></i> No Match{% if po_s == 'PARTIAL_MATCH' %} ⚠{% endif %}
-              </span>
+              <span class="text-muted" style="font-size:.8rem;">—</span>
             {% endif %}
           </td>
 

@@ -44,7 +44,7 @@ def build_filters(args: dict) -> dict:
     """
     Convert URL query parameters into a MongoDB filter dict.
     Supported params: vendor, risk_flag, exclude_risk_flag, status,
-                      date_from, date_to, search, overdue
+                      date_from, date_to, search, overdue, po_match_status
     """
     from datetime import datetime, timezone
     query: dict = {}
@@ -89,5 +89,9 @@ def build_filters(args: dict) -> dict:
         now = datetime.now(timezone.utc)
         query["due_date"] = {"$exists": True, "$ne": None, "$lt": now}
         query["status"]   = "pending"
+
+    # PO match status filter (e.g. po_match_status=NO_PO_FOUND)
+    if args.get("po_match_status"):
+        query["po_match_status"] = args["po_match_status"]
 
     return query

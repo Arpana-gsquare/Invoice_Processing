@@ -192,11 +192,21 @@ def detail(invoice_id: str):
         flash("Invoice not found.", "danger")
         return redirect(url_for("invoices.list_invoices"))
     audit_trail = AuditLog.get_for_invoice(invoice_id)
+
+    # Preserve the filtered list URL so "Invoices" breadcrumb navigates back
+    # to whatever filter the user came from (e.g. PROCEED tile, No PO tile, etc.)
+    referrer = request.referrer or ""
+    if referrer and "/invoices" in referrer and ("?" in referrer or referrer.rstrip("/").endswith("/invoices")):
+        back_url = referrer
+    else:
+        back_url = url_for("invoices.list_invoices")
+
     return render_template(
         "invoices/detail.html",
         invoice=invoice,
         invoice_dict=invoice.to_dict(),
         audit_trail=audit_trail,
+        back_url=back_url,
     )
 
 

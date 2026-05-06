@@ -2,7 +2,7 @@
 {% block title %}Invoice {{ invoice.invoice_number or invoice.id }} – {{ APP_NAME }}{% endblock %}
 {% block breadcrumb %}
   <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
-  <li class="breadcrumb-item"><a href="{{ url_for('invoices.list_invoices') }}">Invoices</a></li>
+  <li class="breadcrumb-item"><a href="{{ back_url }}">Invoices</a></li>
   <li class="breadcrumb-item active">{{ invoice.invoice_number or invoice.id[:8] }}</li>
 {% endblock %}
 

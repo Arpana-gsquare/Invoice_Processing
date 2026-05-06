@@ -36,6 +36,7 @@ def index():
             "moderate_count":  {"$sum": {"$cond": [{"$eq": ["$risk_flag", "MODERATE"]},  1, 0]}},
             "high_risk_count": {"$sum": {"$cond": [{"$eq": ["$risk_flag", "HIGH RISK"]}, 1, 0]}},
             "duplicate_count": {"$sum": {"$cond": [{"$eq": ["$risk_flag", "DUPLICATE"]}, 1, 0]}},
+            "no_po_count":     {"$sum": {"$cond": [{"$eq": ["$po_match_status", "NO_PO_FOUND"]}, 1, 0]}},
             "total_amount":    {"$sum": "$total_amount"},
             # approved_amount = sum of approved invoice amounts (used for Payment tile)
             "approved_amount": {"$sum": {"$cond": [
@@ -62,6 +63,7 @@ def index():
         "moderate_count":   k.get("moderate_count",    0),
         "high_risk_count":  k.get("high_risk_count",   0),
         "duplicate_count":  k.get("duplicate_count",   0),
+        "no_po_count":      k.get("no_po_count",       0),
         "total_amount":     k.get("total_amount",      0),
         "approved_amount":  k.get("approved_amount",   0),
         "overdue":          k.get("overdue",           0),
