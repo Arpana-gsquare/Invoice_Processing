@@ -6,68 +6,229 @@
 
 {% block extra_css %}
 <style>
-  .kpi-tile { cursor:pointer; transition:transform .15s ease,box-shadow .15s ease; }
-  .kpi-tile:hover { transform:translateY(-3px); box-shadow:0 6px 18px rgba(0,0,0,.13); }
-  a.tile-link { text-decoration:none; color:inherit; display:block; }
+  /* ── Page background ── */
+  .page-content { background: #f5f6fa !important; }
 
-  /* ── Date range filter pills ── */
-  .range-pills { display:flex; gap:.4rem; flex-wrap:wrap; }
+  /* ── Shared link wrapper ── */
+  a.tile-link { text-decoration: none; color: inherit; display: block; height: 100%; }
+
+  /* ── KPI Gradient Cards ── */
+  .kpi-tile {
+    cursor: pointer;
+    border-radius: 16px !important;
+    border: none !important;
+    overflow: hidden;
+    position: relative;
+    transition: transform .2s ease, box-shadow .25s ease;
+  }
+  .kpi-tile:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 36px rgba(0,0,0,.18) !important;
+  }
+  .grad-blue-purple   { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  .grad-pink-orange   { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+  .grad-red-rose      { background: linear-gradient(135deg, #ff5f6d 0%, #ffc371 100%); }
+  .grad-purple-indigo { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
+  .grad-amber-orange  { background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); }
+  .grad-green-teal    { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+
+  .kpi-inner {
+    padding: 20px 22px;
+    position: relative;
+    z-index: 1;
+    height: 100%;
+  }
+  .kpi-inner .kpi-deco {
+    position: absolute; right: 14px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 3.8rem; opacity: .15; color: #fff; line-height: 1; pointer-events: none;
+  }
+  .kpi-inner .kpi-val {
+    font-size: 2.1rem; font-weight: 800; color: #fff; line-height: 1; letter-spacing: -.5px;
+  }
+  .kpi-inner .kpi-val-sm {
+    font-size: 1.8rem; font-weight: 800; color: #fff; line-height: 1; letter-spacing: -.5px;
+  }
+  .kpi-inner .kpi-lbl {
+    font-size: .72rem; color: rgba(255,255,255,.82); margin-top: .35rem;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .7px;
+  }
+  .kpi-inner .kpi-sub {
+    font-size: .7rem; color: rgba(255,255,255,.6); margin-top: .1rem;
+  }
+
+  /* ── Range Filter Pills ── */
+  .range-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
   .range-pill {
-    display:inline-flex; align-items:center; gap:.35rem;
-    padding:.3rem .85rem; border-radius:20px; font-size:.78rem; font-weight:600;
-    border:1.5px solid #CBD5E1; background:#fff; color:#475569;
-    text-decoration:none; transition:all .15s;
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .38rem .95rem; border-radius: 22px; font-size: .78rem; font-weight: 600;
+    border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280;
+    text-decoration: none; transition: all .2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
   }
-  .range-pill:hover { border-color:#1F4E79; color:#1F4E79; background:#EFF6FF; }
+  .range-pill:hover { border-color: #667eea; color: #667eea; background: #f0f0ff; }
   .range-pill.active {
-    background:#1F4E79; color:#fff; border-color:#1F4E79;
-    box-shadow:0 2px 8px rgba(31,78,121,.25);
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; border-color: transparent;
+    box-shadow: 0 3px 12px rgba(102,126,234,.38);
   }
 
-  /* ── Workflow tab pills ── */
-  .wf-tabs { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem; }
-  .wf-tab {
-    display:inline-flex; align-items:center; gap:.4rem;
-    padding:.3rem .9rem; border-radius:20px; font-size:.78rem; font-weight:600;
-    border:1.5px solid transparent; cursor:pointer; text-decoration:none;
-    transition:background .15s,border-color .15s;
+  /* ── Section wrapper card ── */
+  .sec-card {
+    background: #fff;
+    border-radius: 16px !important;
+    border: 1px solid #ebebf0 !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07) !important;
+    padding: 20px 22px;
   }
-  .wf-tab .tab-count { background:rgba(0,0,0,.1); border-radius:10px; padding:.05rem .4rem; font-size:.7rem; }
-  .wf-tab:hover { opacity:.85; }
-  .wf-tab.active { border-color:currentColor !important; }
-  .tab-l1  { background:#FEF3C7; color:#92400E; }
-  .tab-l2  { background:#DBEAFE; color:#1E40AF; }
-  .tab-l3  { background:#EDE9FE; color:#5B21B6; }
-  .tab-rev { background:#FEF9C3; color:#713F12; }
-  .tab-mpo { background:#FEE2E2; color:#991B1B; }
-  .tab-app { background:#D1FAE5; color:#065F46; }
-  .tab-pay { background:#CFFAFE; color:#0E7490; }
-  .tab-all { background:#F1F5F9; color:#475569; }
+  .sec-title {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .72rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 1px; color: #6b7280; padding-bottom: .75rem;
+    border-bottom: 1px solid #f3f4f6; margin-bottom: 1.1rem;
+  }
+  .sec-title i { font-size: .95rem; color: #667eea; }
+  .sec-divider { height: 1px; background: #f3f4f6; margin: .9rem 0 1rem; }
+
+  /* ── Approval pipeline cards ── */
+  .pipe-card {
+    border-radius: 12px !important;
+    border: none !important;
+    transition: transform .2s ease, box-shadow .2s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,.07) !important;
+  }
+  .pipe-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(0,0,0,.13) !important; }
+  .pipe-badge {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .78rem; font-weight: 800; color: #fff;
+  }
+
+  /* ── Workflow Queue Chips ── */
+  .wf-tabs { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .wf-tab {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .42rem 1rem; border-radius: 9px; font-size: .8rem; font-weight: 600;
+    border: 1.5px solid transparent; cursor: pointer; text-decoration: none;
+    transition: all .2s; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+  .wf-tab .tab-count {
+    background: rgba(0,0,0,.1); border-radius: 10px;
+    padding: .05rem .45rem; font-size: .7rem; font-weight: 700;
+  }
+  .wf-tab:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.11); }
+  .wf-tab.active { border-color: currentColor !important; }
+  .tab-l1  { background: #FEF3C7; color: #92400E; }
+  .tab-l2  { background: #DBEAFE; color: #1E40AF; }
+  .tab-l3  { background: #EDE9FE; color: #5B21B6; }
+  .tab-rev { background: #FEF9C3; color: #713F12; }
+  .tab-mpo { background: #FEE2E2; color: #991B1B; }
+  .tab-app { background: #D1FAE5; color: #065F46; }
+  .tab-pay { background: #CFFAFE; color: #0E7490; }
+  .tab-all { background: #F1F5F9; color: #475569; }
+
+  /* ── Chart cards ── */
+  .chart-card {
+    background: #fff; border-radius: 16px !important;
+    border: 1px solid #ebebf0 !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06) !important;
+    padding: 20px 22px;
+  }
+  .chart-title {
+    font-size: .9rem; font-weight: 700; color: #1f2937;
+    margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem;
+  }
+  .chart-title::after {
+    content: ''; flex: 1; height: 1px; background: #f3f4f6; margin-left: .5rem;
+  }
+
+  /* ── Executive Summary card ── */
+  #execSummaryCard {
+    background: #fff !important;
+    border-radius: 16px !important;
+    border: 1px solid #e8e9ff !important;
+    border-top: 3px solid #667eea !important;
+    box-shadow: 0 4px 18px rgba(102,126,234,.12) !important;
+  }
+
+  /* ── Vendor rank badge ── */
+  .vendor-rank {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: .7rem; color: #fff; flex-shrink: 0;
+  }
+
+  /* ── Activity feed ── */
+  .act-row { display: flex; align-items: flex-start; gap: .7rem; padding: .55rem 0; border-bottom: 1px solid #f9fafb; }
+  .act-row:last-child { border-bottom: none; }
+  .act-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .85rem; }
+
+  /* ── Recent Invoices table ── */
+  .inv-table th {
+    background: #f9fafb !important; color: #6b7280 !important;
+    font-size: .73rem !important; font-weight: 700 !important;
+    text-transform: uppercase; letter-spacing: .5px;
+    border-top: none !important; padding: .75rem 1rem !important;
+  }
+  .inv-table td { padding: .75rem 1rem !important; vertical-align: middle; font-size: .875rem; }
+  .inv-table tbody tr:hover { background: #fafaff !important; }
+
+  /* ── Page header bar ── */
+  .dash-header {
+    background: #fff; border-radius: 16px; padding: 14px 20px;
+    border: 1px solid #ebebf0; box-shadow: 0 1px 6px rgba(0,0,0,.05);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: .75rem; margin-bottom: 1.5rem;
+  }
+  .dash-header h5 { font-size: 1.1rem; font-weight: 800; color: #1f2937; margin: 0; }
+
+  /* ── My queue pill ── */
+  .queue-badge {
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    color: #1f2937; font-size: .72rem; font-weight: 700;
+    padding: .28rem .8rem; border-radius: 20px;
+  }
+
+  /* ── Gradient button ── */
+  .btn-grad {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff !important; border: none;
+    border-radius: 9px; font-size: .78rem; font-weight: 600;
+    padding: .38rem .9rem; transition: all .2s;
+    box-shadow: 0 3px 10px rgba(102,126,234,.3);
+  }
+  .btn-grad:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(102,126,234,.42); }
+
+  /* ── Spacing ── */
+  .sg { margin-bottom: 1.6rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- ── Header + Date Range Filter ── -->
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
-  <h5 class="fw-bold mb-0">
-    <i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard
-    <span class="badge ms-2 px-2 py-1"
-          style="font-size:.72rem;background:#EFF6FF;color:#1F4E79;border:1px solid #BFDBFE;border-radius:20px;font-weight:600;">
+
+<!-- ── Page Header + Range Filter ── -->
+<div class="dash-header">
+  <h5>
+    <i class="bi bi-speedometer2 me-2" style="color:#667eea;"></i>Dashboard
+    <span style="display:inline-flex;align-items:center;margin-left:.5rem;font-size:.68rem;font-weight:700;
+                 background:#eff0ff;color:#667eea;border:1px solid #c7d0fb;
+                 border-radius:20px;padding:.15rem .6rem;letter-spacing:.3px;">
       {{ range_label }}
     </span>
   </h5>
   <div class="range-pills">
     <a href="{{ url_for('dashboard.index', range='7d') }}"
        class="range-pill {% if selected_range == '7d' %}active{% endif %}">
-      <i class="bi bi-calendar-week"></i> Last 7 Days
+      <i class="bi bi-calendar-week"></i> 7 Days
     </a>
     <a href="{{ url_for('dashboard.index', range='30d') }}"
        class="range-pill {% if selected_range == '30d' %}active{% endif %}">
-      <i class="bi bi-calendar-month"></i> Last 30 Days
+      <i class="bi bi-calendar-month"></i> 30 Days
     </a>
     <a href="{{ url_for('dashboard.index', range='90d') }}"
        class="range-pill {% if selected_range == '90d' %}active{% endif %}">
-      <i class="bi bi-calendar3"></i> Last 90 Days
+      <i class="bi bi-calendar3"></i> 90 Days
     </a>
     <a href="{{ url_for('dashboard.index', range='lifetime') }}"
        class="range-pill {% if selected_range == 'lifetime' %}active{% endif %}">
@@ -77,89 +238,113 @@
 </div>
 
 <!-- ── KPI Row 1 ── -->
-<div class="row g-3 mb-3">
+<div class="row g-3 sg">
   <div class="col-6 col-md-4">
     <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices') }}">
-      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #1F4E79;">
-        <div class="stat-value text-primary">{{ stats.total_invoices }}</div>
-        <div class="stat-label text-muted">Total Invoices</div>
+      <div class="card kpi-tile grad-blue-purple h-100">
+        <div class="kpi-inner">
+          <i class="bi bi-receipt kpi-deco"></i>
+          <div class="kpi-val">{{ stats.total_invoices }}</div>
+          <div class="kpi-lbl">Total Invoices</div>
+          <div class="kpi-sub">{{ range_label }}</div>
+        </div>
       </div>
     </a>
   </div>
   <div class="col-6 col-md-4">
     <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', workflow_status='missing_po') }}">
-      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #F43F5E;">
-        <div class="stat-value" style="color:#BE123C;">{{ stats.wf_missing_po }}</div>
-        <div class="stat-label text-muted">Missing PO</div>
+      <div class="card kpi-tile grad-pink-orange h-100">
+        <div class="kpi-inner">
+          <i class="bi bi-file-x kpi-deco"></i>
+          <div class="kpi-val">{{ stats.wf_missing_po }}</div>
+          <div class="kpi-lbl">Missing PO</div>
+          <div class="kpi-sub">Needs attention</div>
+        </div>
       </div>
     </a>
   </div>
   <div class="col-6 col-md-4">
     <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', overdue='1') }}">
-      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #EF4444;">
-        <div class="stat-value text-danger">{{ stats.overdue }}</div>
-        <div class="stat-label text-muted">Overdue</div>
+      <div class="card kpi-tile grad-red-rose h-100">
+        <div class="kpi-inner">
+          <i class="bi bi-clock-history kpi-deco"></i>
+          <div class="kpi-val">{{ stats.overdue }}</div>
+          <div class="kpi-lbl">Overdue</div>
+          <div class="kpi-sub">Past due date</div>
+        </div>
       </div>
     </a>
   </div>
 </div>
 
 <!-- ── KPI Row 2 ── -->
-<div class="row g-3 mb-4">
+<div class="row g-3 sg">
   <div class="col-6 col-md-3">
     <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', risk_flag='HIGH RISK') }}">
-      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #EF4444;">
-        <div class="stat-value" style="font-size:1.5rem;color:#991B1B;">{{ stats.high_risk_count }}</div>
-        <div class="stat-label text-muted">HIGH RISK</div>
+      <div class="card kpi-tile grad-red-rose h-100">
+        <div class="kpi-inner">
+          <i class="bi bi-shield-x kpi-deco"></i>
+          <div class="kpi-val-sm">{{ stats.high_risk_count }}</div>
+          <div class="kpi-lbl">High Risk</div>
+        </div>
       </div>
     </a>
   </div>
   <div class="col-6 col-md-3">
     <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', risk_flag='DUPLICATE') }}">
-      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #6366F1;">
-        <div class="stat-value" style="font-size:1.5rem;color:#3730A3;">{{ stats.duplicate_count }}</div>
-        <div class="stat-label text-muted">DUPLICATE</div>
+      <div class="card kpi-tile grad-purple-indigo h-100">
+        <div class="kpi-inner">
+          <i class="bi bi-files kpi-deco"></i>
+          <div class="kpi-val-sm">{{ stats.duplicate_count }}</div>
+          <div class="kpi-lbl">Duplicate</div>
+        </div>
       </div>
     </a>
   </div>
   <div class="col-6 col-md-3">
     <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', workflow_status='manual_review') }}">
-      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #F59E0B;">
-        <div class="stat-value" style="font-size:1.5rem;color:#92400E;">{{ stats.wf_manual_review }}</div>
-        <div class="stat-label text-muted">Manual Review</div>
+      <div class="card kpi-tile grad-amber-orange h-100">
+        <div class="kpi-inner">
+          <i class="bi bi-pencil-square kpi-deco"></i>
+          <div class="kpi-val-sm">{{ stats.wf_manual_review }}</div>
+          <div class="kpi-lbl">Manual Review</div>
+        </div>
       </div>
     </a>
   </div>
   <div class="col-6 col-md-3">
     <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', status='approved') }}">
-      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #0891B2;">
-        <div class="stat-value" style="font-size:1.5rem;color:#0E7490;">{{ stats.approved }}</div>
-        <div class="stat-label text-muted">Ready to Pay</div>
+      <div class="card kpi-tile grad-green-teal h-100">
+        <div class="kpi-inner">
+          <i class="bi bi-credit-card kpi-deco"></i>
+          <div class="kpi-val-sm">{{ stats.approved }}</div>
+          <div class="kpi-lbl">Ready to Pay</div>
+        </div>
       </div>
     </a>
   </div>
 </div>
 
-<!-- ── Approval Pipeline Cards ── -->
-<div class="card mb-4 p-3">
-  <div class="mb-2">
-    <span class="fw-semibold text-muted" style="font-size:.82rem;">
-      <i class="bi bi-people me-1"></i>APPROVAL PIPELINE
-    </span>
+<!-- ── Approval Pipeline ── -->
+<div class="sec-card sg">
+  <div class="sec-title">
+    <i class="bi bi-people-fill"></i> Approval Pipeline
   </div>
-  <div class="row g-2 mb-2">
+
+  <!-- Pending row -->
+  <div class="row g-3 mb-0">
     <div class="col-12 col-sm-6 col-md-4">
       <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending_L1') }}">
-        <div class="card kpi-tile h-100" style="border-left:4px solid #F59E0B;background:#FFFBEB;">
-          <div class="card-body py-2 px-3">
+        <div class="card pipe-card h-100" style="background:#FFFBEB;border-left:4px solid #F59E0B !important;">
+          <div class="card-body py-3 px-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <div style="font-size:1.6rem;font-weight:700;color:#92400E;line-height:1;">{{ stats.wf_pending_L1 }}</div>
-                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                <div style="font-size:1.75rem;font-weight:800;color:#92400E;line-height:1;">{{ stats.wf_pending_L1 }}</div>
+                <div style="font-size:.76rem;color:#B45309;margin-top:.25rem;font-weight:700;">
                   <i class="bi bi-hourglass-split me-1"></i>Pending L1
                 </div>
               </div>
-              <div style="width:36px;height:36px;border-radius:50%;background:#FEF3C7;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#92400E;">L1</div>
+              <div class="pipe-badge" style="background:linear-gradient(135deg,#F59E0B,#FCD34D);box-shadow:0 3px 9px rgba(245,158,11,.32);">L1</div>
             </div>
           </div>
         </div>
@@ -167,16 +352,16 @@
     </div>
     <div class="col-12 col-sm-6 col-md-4">
       <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending_L2') }}">
-        <div class="card kpi-tile h-100" style="border-left:4px solid #3B82F6;background:#EFF6FF;">
-          <div class="card-body py-2 px-3">
+        <div class="card pipe-card h-100" style="background:#EFF6FF;border-left:4px solid #3B82F6 !important;">
+          <div class="card-body py-3 px-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <div style="font-size:1.6rem;font-weight:700;color:#1E40AF;line-height:1;">{{ stats.wf_pending_L2 }}</div>
-                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                <div style="font-size:1.75rem;font-weight:800;color:#1E40AF;line-height:1;">{{ stats.wf_pending_L2 }}</div>
+                <div style="font-size:.76rem;color:#1D4ED8;margin-top:.25rem;font-weight:700;">
                   <i class="bi bi-hourglass-split me-1"></i>Pending L2
                 </div>
               </div>
-              <div style="width:36px;height:36px;border-radius:50%;background:#DBEAFE;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#1E40AF;">L2</div>
+              <div class="pipe-badge" style="background:linear-gradient(135deg,#3B82F6,#60A5FA);box-shadow:0 3px 9px rgba(59,130,246,.32);">L2</div>
             </div>
           </div>
         </div>
@@ -184,35 +369,41 @@
     </div>
     <div class="col-12 col-sm-6 col-md-4">
       <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending_L3') }}">
-        <div class="card kpi-tile h-100" style="border-left:4px solid #8B5CF6;background:#F5F3FF;">
-          <div class="card-body py-2 px-3">
+        <div class="card pipe-card h-100" style="background:#F5F3FF;border-left:4px solid #8B5CF6 !important;">
+          <div class="card-body py-3 px-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <div style="font-size:1.6rem;font-weight:700;color:#5B21B6;line-height:1;">{{ stats.wf_pending_L3 }}</div>
-                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                <div style="font-size:1.75rem;font-weight:800;color:#5B21B6;line-height:1;">{{ stats.wf_pending_L3 }}</div>
+                <div style="font-size:.76rem;color:#6D28D9;margin-top:.25rem;font-weight:700;">
                   <i class="bi bi-hourglass-split me-1"></i>Pending L3
                 </div>
               </div>
-              <div style="width:36px;height:36px;border-radius:50%;background:#EDE9FE;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#5B21B6;">L3</div>
+              <div class="pipe-badge" style="background:linear-gradient(135deg,#8B5CF6,#A78BFA);box-shadow:0 3px 9px rgba(139,92,246,.32);">L3</div>
             </div>
           </div>
         </div>
       </a>
     </div>
   </div>
-  <div class="row g-2">
+
+  <div class="sec-divider"></div>
+
+  <!-- Approved row -->
+  <div class="row g-3">
     <div class="col-12 col-sm-6 col-md-4">
       <a class="tile-link" href="{{ url_for('invoices.list_invoices', approved_by='L1') }}">
-        <div class="card kpi-tile h-100" style="border-left:4px solid #10B981;background:#F0FDF4;">
-          <div class="card-body py-2 px-3">
+        <div class="card pipe-card h-100" style="background:#F0FDF4;border-left:4px solid #10B981 !important;">
+          <div class="card-body py-3 px-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <div style="font-size:1.6rem;font-weight:700;color:#065F46;line-height:1;">{{ stats.approved_by_L1 }}</div>
-                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
-                  <i class="bi bi-check-circle me-1"></i>Approved by L1
+                <div style="font-size:1.75rem;font-weight:800;color:#065F46;line-height:1;">{{ stats.approved_by_L1 }}</div>
+                <div style="font-size:.76rem;color:#059669;margin-top:.25rem;font-weight:700;">
+                  <i class="bi bi-check-circle-fill me-1"></i>Approved by L1
                 </div>
               </div>
-              <div style="width:36px;height:36px;border-radius:50%;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#065F46;">&#10003;</div>
+              <div class="pipe-badge" style="background:linear-gradient(135deg,#10B981,#34D399);box-shadow:0 3px 9px rgba(16,185,129,.32);font-size:1rem;">
+                <i class="bi bi-check-lg"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -220,16 +411,18 @@
     </div>
     <div class="col-12 col-sm-6 col-md-4">
       <a class="tile-link" href="{{ url_for('invoices.list_invoices', approved_by='L2') }}">
-        <div class="card kpi-tile h-100" style="border-left:4px solid #10B981;background:#F0FDF4;">
-          <div class="card-body py-2 px-3">
+        <div class="card pipe-card h-100" style="background:#F0FDF4;border-left:4px solid #10B981 !important;">
+          <div class="card-body py-3 px-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <div style="font-size:1.6rem;font-weight:700;color:#065F46;line-height:1;">{{ stats.approved_by_L2 }}</div>
-                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
-                  <i class="bi bi-check-circle me-1"></i>Approved by L2
+                <div style="font-size:1.75rem;font-weight:800;color:#065F46;line-height:1;">{{ stats.approved_by_L2 }}</div>
+                <div style="font-size:.76rem;color:#059669;margin-top:.25rem;font-weight:700;">
+                  <i class="bi bi-check-circle-fill me-1"></i>Approved by L2
                 </div>
               </div>
-              <div style="width:36px;height:36px;border-radius:50%;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#065F46;">&#10003;</div>
+              <div class="pipe-badge" style="background:linear-gradient(135deg,#10B981,#34D399);box-shadow:0 3px 9px rgba(16,185,129,.32);font-size:1rem;">
+                <i class="bi bi-check-lg"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -237,16 +430,18 @@
     </div>
     <div class="col-12 col-sm-6 col-md-4">
       <a class="tile-link" href="{{ url_for('invoices.list_invoices', approved_by='L3') }}">
-        <div class="card kpi-tile h-100" style="border-left:4px solid #10B981;background:#F0FDF4;">
-          <div class="card-body py-2 px-3">
+        <div class="card pipe-card h-100" style="background:#F0FDF4;border-left:4px solid #10B981 !important;">
+          <div class="card-body py-3 px-3">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <div style="font-size:1.6rem;font-weight:700;color:#065F46;line-height:1;">{{ stats.approved_by_L3 }}</div>
-                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                <div style="font-size:1.75rem;font-weight:800;color:#065F46;line-height:1;">{{ stats.approved_by_L3 }}</div>
+                <div style="font-size:.76rem;color:#059669;margin-top:.25rem;font-weight:700;">
                   <i class="bi bi-check2-all me-1"></i>Approved by L3
                 </div>
               </div>
-              <div style="width:36px;height:36px;border-radius:50%;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#065F46;">&#10003;</div>
+              <div class="pipe-badge" style="background:linear-gradient(135deg,#10B981,#34D399);box-shadow:0 3px 9px rgba(16,185,129,.32);font-size:1rem;">
+                <i class="bi bi-check2-all"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -255,15 +450,15 @@
   </div>
 </div>
 
-<!-- ── Workflow Queue Tabs ── -->
-<div class="card mb-4 p-3">
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <span class="fw-semibold text-muted" style="font-size:.82rem;">
-      <i class="bi bi-diagram-3 me-1"></i>WORKFLOW QUEUE
-    </span>
+<!-- ── Workflow Queue ── -->
+<div class="sec-card sg">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="sec-title mb-0" style="border:none;padding:0;">
+      <i class="bi bi-diagram-3-fill"></i> Workflow Queue
+    </div>
     {% if my_queue_state %}
-    <span class="badge" style="background:#FEF3C7;color:#92400E;font-size:.72rem;">
-      Your queue: {{ my_queue_count }} invoice{{ 's' if my_queue_count != 1 }}
+    <span class="queue-badge">
+      <i class="bi bi-person-fill me-1"></i>Your queue: {{ my_queue_count }} invoice{{ 's' if my_queue_count != 1 }}
     </span>
     {% endif %}
   </div>
@@ -296,32 +491,40 @@
 </div>
 
 <!-- ── Charts Row ── -->
-<div class="row g-3 mb-4">
+<div class="row g-3 sg">
   <div class="col-md-8 d-flex flex-column gap-3">
-    <div class="card p-3">
-      <h6 class="fw-semibold mb-3 text-muted" id="trendChartTitle">Invoice Volume &amp; Value</h6>
+
+    <!-- Trend Chart -->
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-bar-chart-fill" style="color:#667eea;"></i>
+        <span id="trendChartTitle">Invoice Volume &amp; Value</span>
+      </div>
       <canvas id="monthlyChart" height="90"></canvas>
     </div>
-    <div class="card flex-grow-1" id="execSummaryCard" style="border-top:3px solid #1F4E79;">
-      <div class="card-body">
+
+    <!-- Executive Summary -->
+    <div class="card flex-grow-1" id="execSummaryCard">
+      <div class="card-body" style="padding:20px 22px;">
         <div class="d-flex align-items-center justify-content-between mb-3">
-          <h6 class="fw-semibold mb-0" style="color:#1F4E79;font-size:.95rem;">
-            <i class="bi bi-stars me-1" style="color:#6366F1;"></i>Executive Summary
+          <h6 class="fw-bold mb-0" style="color:#1f2937;font-size:.95rem;display:flex;align-items:center;gap:.4rem;">
+            <i class="bi bi-stars" style="color:#667eea;font-size:1.1rem;"></i>
+            Executive Summary
             <span id="execCacheBadge"
-                  style="display:none;margin-left:.4rem;font-size:.65rem;font-weight:500;
-                         background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;
-                         border-radius:20px;padding:.15rem .5rem;">cached</span>
+                  style="display:none;margin-left:.3rem;font-size:.65rem;font-weight:700;
+                         background:#eff0ff;color:#667eea;border:1px solid #c7d0fb;
+                         border-radius:20px;padding:.15rem .55rem;">cached</span>
           </h6>
           <div class="d-flex align-items-center gap-2">
-            <small id="execTimestamp" class="text-muted" style="font-size:.73rem;"></small>
-            <button id="refreshInsightsBtn" class="btn btn-sm btn-outline-primary py-0 px-2"
-                    onclick="loadExecutiveSummary(true)" style="font-size:.75rem;">
+            <small id="execTimestamp" class="text-muted" style="font-size:.72rem;"></small>
+            <button id="refreshInsightsBtn" class="btn btn-grad btn-sm"
+                    onclick="loadExecutiveSummary(true)">
               <i class="bi bi-arrow-clockwise me-1"></i>Refresh
             </button>
           </div>
         </div>
-        <div id="execLoading" class="text-center py-3">
-          <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+        <div id="execLoading" class="text-center py-4">
+          <div class="spinner-border spinner-border-sm me-2" role="status" style="color:#667eea;"></div>
           <span class="text-muted small">Analysing invoice data with AI...</span>
         </div>
         <div id="execError" class="alert alert-warning py-2 small mb-0" style="display:none;">
@@ -330,108 +533,122 @@
           <a href="#" class="alert-link ms-2" onclick="loadExecutiveSummary(true);return false;">Retry</a>
         </div>
         <div id="execAnomalySummary" style="display:none;"></div>
-        <ul id="execInsightsList" class="mb-0" style="display:none;padding-left:1.25rem;line-height:1.8;"></ul>
+        <ul id="execInsightsList" class="mb-0" style="display:none;padding-left:1.25rem;line-height:1.9;"></ul>
       </div>
     </div>
   </div>
+
+  <!-- Risk Doughnut -->
   <div class="col-md-4">
-    <div class="card p-3">
-      <h6 class="fw-semibold mb-3 text-muted">Risk Distribution</h6>
+    <div class="chart-card h-100">
+      <div class="chart-title">
+        <i class="bi bi-pie-chart-fill" style="color:#667eea;"></i>
+        <span>Risk Distribution</span>
+      </div>
       <canvas id="riskChart" height="180"></canvas>
     </div>
   </div>
 </div>
 
 <!-- ── Top Vendors + Recent Activity ── -->
-<div class="row g-3 mb-4">
+<div class="row g-3 sg">
   <div class="col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h6 class="fw-semibold text-muted mb-3">Top Vendors by Invoice Count</h6>
-        {% for v in top_vendors %}
-        <div class="d-flex align-items-center mb-2">
-          <div style="width:32px;height:32px;border-radius:8px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:#1F4E79;flex-shrink:0;">
-            {{ loop.index }}
+    <div class="sec-card h-100">
+      <div class="sec-title">
+        <i class="bi bi-building"></i> Top Vendors by Invoice Count
+      </div>
+      {% for v in top_vendors %}
+      <div class="d-flex align-items-center mb-3">
+        <div class="vendor-rank">{{ loop.index }}</div>
+        <div class="ms-2 flex-grow-1">
+          <div class="d-flex justify-content-between">
+            <span style="font-size:.85rem;font-weight:600;color:#1f2937;">{{ v._id or 'Unknown' }}</span>
+            <span style="font-size:.78rem;color:#6b7280;">{{ v.count }} inv</span>
           </div>
-          <div class="ms-2 flex-grow-1">
-            <div class="d-flex justify-content-between">
-              <span class="small fw-semibold">{{ v._id or 'Unknown' }}</span>
-              <span class="small text-muted">{{ v.count }} inv</span>
-            </div>
-            <div class="progress mt-1" style="height:4px;">
-              <div class="progress-bar" style="width:{{ (v.count / top_vendors[0].count * 100)|int }}%;background:#1F4E79;"></div>
-            </div>
-          </div>
-          <div class="ms-3 text-end small fw-semibold text-primary" style="min-width:70px;">
-            &#8377;{{ "{:,.0f}".format(v.total_amount) }}
+          <div class="progress mt-1" style="height:5px;border-radius:4px;background:#f3f4f6;">
+            <div class="progress-bar" style="width:{{ (v.count / top_vendors[0].count * 100)|int }}%;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:4px;"></div>
           </div>
         </div>
-        {% else %}
-        <p class="text-muted small text-center py-3">No invoices yet.</p>
-        {% endfor %}
+        <div class="ms-3 text-end" style="min-width:72px;font-size:.82rem;font-weight:700;color:#667eea;">
+          &#8377;{{ "{:,.0f}".format(v.total_amount) }}
+        </div>
       </div>
+      {% else %}
+      <p class="text-muted small text-center py-4">No invoices yet.</p>
+      {% endfor %}
     </div>
   </div>
   <div class="col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h6 class="fw-semibold text-muted mb-3">Recent Activity</h6>
-        <div style="max-height:280px;overflow-y:auto;">
-          {% for log in recent_activity %}
-          <div class="d-flex align-items-start mb-2 pb-2 border-bottom">
-            <div class="me-2 mt-1">
-              {% if log.action == 'upload' %}<i class="bi bi-cloud-upload text-primary"></i>
-              {% elif log.action == 'approve' %}<i class="bi bi-check-circle text-success"></i>
-              {% elif log.action == 'reject' %}<i class="bi bi-x-circle text-danger"></i>
-              {% elif log.action == 'flag_risk' %}<i class="bi bi-shield-exclamation text-warning"></i>
-              {% else %}<i class="bi bi-activity text-secondary"></i>{% endif %}
-            </div>
-            <div class="flex-grow-1">
-              <div class="small fw-semibold">
-                {{ log.actor_name }} <span class="fw-normal text-muted">{{ log.action }}</span>
-              </div>
-              <div class="text-muted" style="font-size:.75rem;">{{ log.timestamp[:16] | replace('T',' ') }}</div>
-            </div>
-          </div>
+    <div class="sec-card h-100">
+      <div class="sec-title">
+        <i class="bi bi-activity"></i> Recent Activity
+      </div>
+      <div style="max-height:280px;overflow-y:auto;">
+        {% for log in recent_activity %}
+        <div class="act-row">
+          {% if log.action == 'upload' %}
+          <div class="act-icon" style="background:#eff0ff;color:#667eea;"><i class="bi bi-cloud-upload"></i></div>
+          {% elif log.action == 'approve' %}
+          <div class="act-icon" style="background:#f0fdf4;color:#10B981;"><i class="bi bi-check-circle"></i></div>
+          {% elif log.action == 'reject' %}
+          <div class="act-icon" style="background:#fef2f2;color:#EF4444;"><i class="bi bi-x-circle"></i></div>
+          {% elif log.action == 'flag_risk' %}
+          <div class="act-icon" style="background:#fffbeb;color:#F59E0B;"><i class="bi bi-shield-exclamation"></i></div>
           {% else %}
-          <p class="text-muted small text-center py-3">No recent activity.</p>
-          {% endfor %}
+          <div class="act-icon" style="background:#f9fafb;color:#9ca3af;"><i class="bi bi-activity"></i></div>
+          {% endif %}
+          <div class="flex-grow-1">
+            <div style="font-size:.84rem;font-weight:600;color:#1f2937;">
+              {{ log.actor_name }} <span style="font-weight:400;color:#6b7280;">{{ log.action }}</span>
+            </div>
+            <div style="font-size:.73rem;color:#9ca3af;">{{ log.timestamp[:16] | replace('T',' ') }}</div>
+          </div>
         </div>
+        {% else %}
+        <p class="text-muted small text-center py-4">No recent activity.</p>
+        {% endfor %}
       </div>
     </div>
   </div>
 </div>
 
 <!-- ── Recent Invoices ── -->
-<div class="card">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h6 class="fw-semibold text-muted mb-0">Recent Invoices</h6>
-      <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-sm btn-outline-primary">View All</a>
+<div class="sec-card sg">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="sec-title mb-0" style="border:none;padding:0;">
+      <i class="bi bi-receipt"></i> Recent Invoices
     </div>
-    <div class="table-responsive">
-      <table class="table mb-0">
-        <thead>
-          <tr><th>Invoice #</th><th>Vendor</th><th>Amount</th><th>Risk</th><th>Status</th><th>Uploaded</th></tr>
-        </thead>
-        <tbody>
-          {% for inv in recent_invoices %}
-          <tr onclick="window.location='{{ url_for('invoices.detail', invoice_id=inv._id) }}'" style="cursor:pointer;">
-            <td class="fw-semibold text-primary">{{ inv.invoice_number or '—' }}</td>
-            <td>{{ inv.vendor_name or '—' }}</td>
-            <td class="fw-semibold">{{ inv.get('currency_symbol','&#8377;') }}{{ "{:,.2f}".format(inv.total_amount) }}</td>
-            <td><span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">{{ inv.risk_flag }}</span></td>
-            <td><span class="status-badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
-            <td class="text-muted small">{{ inv.upload_timestamp }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No invoices yet. <a href="{{ url_for('invoices.upload') }}">Upload one</a></td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-grad btn-sm">
+      View All <i class="bi bi-arrow-right ms-1"></i>
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table inv-table mb-0">
+      <thead>
+        <tr><th>Invoice #</th><th>Vendor</th><th>Amount</th><th>Risk</th><th>Status</th><th>Uploaded</th></tr>
+      </thead>
+      <tbody>
+        {% for inv in recent_invoices %}
+        <tr onclick="window.location='{{ url_for('invoices.detail', invoice_id=inv._id) }}'" style="cursor:pointer;">
+          <td class="fw-semibold" style="color:#667eea;">{{ inv.invoice_number or '—' }}</td>
+          <td style="color:#1f2937;font-weight:500;">{{ inv.vendor_name or '—' }}</td>
+          <td class="fw-semibold" style="color:#1f2937;">{{ inv.get('currency_symbol','&#8377;') }}{{ "{:,.2f}".format(inv.total_amount) }}</td>
+          <td><span class="risk-badge badge-{{ inv.risk_flag | replace(' ','-') }}">{{ inv.risk_flag }}</span></td>
+          <td><span class="status-badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
+          <td style="color:#9ca3af;font-size:.8rem;">{{ inv.upload_timestamp }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center py-4" style="color:#9ca3af;">
+            No invoices yet. <a href="{{ url_for('invoices.upload') }}" style="color:#667eea;font-weight:600;">Upload one</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -456,18 +673,23 @@ new Chart(document.getElementById('monthlyChart'), {
     labels: trendData.map(buildLabel),
     datasets: [
       { label:'Invoice Count', data:trendData.map(d=>d.count),
-        backgroundColor:'#BFDBFE', borderColor:'#1F4E79', borderWidth:1, yAxisID:'y' },
+        backgroundColor:'rgba(102,126,234,.22)', borderColor:'#667eea',
+        borderWidth:2, borderRadius:5, yAxisID:'y' },
       { label:'Total Amount (₹)', data:trendData.map(d=>d.total),
-        type:'line', borderColor:'#F59E0B', backgroundColor:'transparent', tension:0.4, yAxisID:'y1' },
+        type:'line', borderColor:'#f5576c', backgroundColor:'rgba(245,87,108,.08)',
+        fill:true, tension:0.4, pointBackgroundColor:'#f5576c',
+        pointRadius:3, borderWidth:2, yAxisID:'y1' },
     ]
   },
   options: {
     responsive:true,
     interaction:{ mode:'index', intersect:false },
-    plugins:{ legend:{ position:'top', labels:{ font:{ size:11 } } } },
+    plugins:{ legend:{ position:'top', labels:{ font:{ size:11 }, usePointStyle:true, padding:14 } } },
     scales:{
-      y:  { type:'linear', position:'left',  title:{ display:true, text:'Count' } },
-      y1: { type:'linear', position:'right', title:{ display:true, text:'Amount (₹)' }, grid:{ drawOnChartArea:false } },
+      y:  { type:'linear', position:'left',  title:{ display:true, text:'Count', font:{size:10} },
+             grid:{ color:'rgba(0,0,0,.04)' } },
+      y1: { type:'linear', position:'right', title:{ display:true, text:'Amount (₹)', font:{size:10} },
+             grid:{ drawOnChartArea:false } },
     }
   }
 });
@@ -479,15 +701,16 @@ new Chart(document.getElementById('riskChart'), {
     labels: ['Low Risk','Moderate','High Risk','Duplicate'],
     datasets: [{
       data: [{{ stats.low_risk_count }},{{ stats.moderate_count }},{{ stats.high_risk_count }},{{ stats.duplicate_count }}],
-      backgroundColor: ['#D1FAE5','#FEF3C7','#FEE2E2','#E0E7FF'],
-      borderColor:     ['#10B981','#F59E0B','#EF4444','#6366F1'],
-      borderWidth: 2,
+      backgroundColor: ['#4facfe','#f7971e','#f5576c','#a18cd1'],
+      borderColor:     ['#fff','#fff','#fff','#fff'],
+      borderWidth: 3,
+      hoverOffset: 8,
     }]
   },
   options:{
     responsive:true,
-    plugins:{ legend:{ position:'bottom', labels:{ font:{ size:11 }, padding:12 } } },
-    cutout:'65%',
+    plugins:{ legend:{ position:'bottom', labels:{ font:{ size:11 }, usePointStyle:true, padding:14 } } },
+    cutout:'68%',
   }
 });
 
@@ -533,7 +756,7 @@ function renderInsights(data) {
   }
   (data.insights||[]).forEach(insight => {
     const li = document.createElement('li');
-    li.style.cssText = 'font-size:.875rem;color:#334155;margin-bottom:.4rem;';
+    li.style.cssText = 'font-size:.875rem;color:#374151;margin-bottom:.4rem;';
     li.textContent = insight;
     execList.appendChild(li);
   });
