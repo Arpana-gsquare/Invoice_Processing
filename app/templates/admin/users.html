@@ -20,14 +20,22 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <h5 class="fw-bold mb-0">
-    <i class="bi bi-people-fill me-2 text-primary"></i>User Management
-    <span class="badge bg-light text-muted ms-1" style="font-size:.75rem;">{{ users|length }}</span>
-  </h5>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
-    <i class="bi bi-plus-lg me-1"></i>Add User
-  </button>
+<!-- Page header -->
+<div class="card mb-4" style="border-radius:var(--card-radius);border:none;box-shadow:var(--card-shadow);">
+  <div class="card-body py-3 px-4">
+    <div class="d-flex align-items-center justify-content-between">
+      <div>
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-people-fill me-2" style="color:var(--accent);"></i>User Management
+          <span class="badge bg-light text-muted ms-1" style="font-size:.75rem;">{{ users|length }}</span>
+        </h5>
+        <p class="text-muted small mb-0">Manage roles and access for all team members</p>
+      </div>
+      <button class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#createUserModal">
+        <i class="bi bi-plus-lg me-1"></i>Add User
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- Role legend -->

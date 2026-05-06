@@ -6,21 +6,27 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <div>
-    <h5 class="fw-bold mb-1"><i class="bi bi-trash me-2 text-warning"></i>Recycle Bin
-      <span class="badge bg-warning text-dark ms-1" style="font-size:.75rem;">{{ pagination.total }}</span>
-    </h5>
-    <p class="text-muted small mb-0">Soft-deleted invoices. Restore or permanently delete them here.</p>
+<!-- Page header -->
+<div class="card mb-4" style="border-radius:var(--card-radius);border:none;box-shadow:var(--card-shadow);">
+  <div class="card-body py-3 px-4">
+    <div class="d-flex align-items-center justify-content-between">
+      <div>
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-trash me-2 text-warning"></i>Recycle Bin
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.75rem;">{{ pagination.total }}</span>
+        </h5>
+        <p class="text-muted small mb-0">Soft-deleted invoices — restore or permanently delete them here</p>
+      </div>
+      {% if pagination.total > 0 %}
+      <form method="POST" action="{{ url_for('recycle.purge_all') }}"
+            onsubmit="return confirm('Permanently delete ALL {{ pagination.total }} invoice(s) in the bin? This cannot be undone.')">
+        <button type="submit" class="btn btn-danger btn-sm px-3">
+          <i class="bi bi-fire me-1"></i>Empty Recycle Bin
+        </button>
+      </form>
+      {% endif %}
+    </div>
   </div>
-  {% if pagination.total > 0 %}
-  <form method="POST" action="{{ url_for('recycle.purge_all') }}"
-        onsubmit="return confirm('Permanently delete ALL {{ pagination.total }} invoice(s) in the bin? This cannot be undone.')">
-    <button type="submit" class="btn btn-danger btn-sm">
-      <i class="bi bi-fire me-1"></i>Empty Recycle Bin
-    </button>
-  </form>
-  {% endif %}
 </div>
 
 <!-- Info banner -->

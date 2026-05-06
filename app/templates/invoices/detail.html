@@ -8,18 +8,38 @@
 
 {% block content %}
 {% set d = invoice_dict %}
+{% set wf_st = d.get('workflow_status') or invoice.workflow_status %}
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<!-- Page header -->
+<div style="background:#fff;border-radius:14px;padding:14px 20px;
+            border:1px solid #ebebf0;box-shadow:0 1px 6px rgba(0,0,0,.05);
+            display:flex;align-items:center;justify-content:space-between;
+            flex-wrap:wrap;gap:.75rem;margin-bottom:1.4rem;">
   <div>
-    <h5 class="fw-bold mb-1">
-      Invoice {{ invoice.invoice_number or '—' }}
-      <span class="risk-badge badge-{{ invoice.risk_flag | replace(' ','-') }} ms-2">
-        {% if invoice.risk_flag == 'LOW RISK' %}✅{% elif invoice.risk_flag == 'MODERATE' %}⚠️{% elif invoice.risk_flag == 'HIGH RISK' %}🚨{% else %}🔁{% endif %}
-        {{ invoice.risk_flag }}
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <h5 style="font-size:1.05rem;font-weight:800;color:#1f2937;margin:0;">
+        <i class="bi bi-receipt me-2" style="color:#667eea;"></i>{{ invoice.invoice_number or 'Invoice' }}
+      </h5>
+      <span class="risk-badge badge-{{ invoice.risk_flag | replace(' ','-') }}">
+        {% if invoice.risk_flag == 'LOW RISK' %}✅ PROCEED
+        {% elif invoice.risk_flag == 'MODERATE' %}⚠️ MODERATE
+        {% elif invoice.risk_flag == 'HIGH RISK' %}🚨 HIGH RISK
+        {% else %}🔁 DUPLICATE{% endif %}
       </span>
-      <span class="status-badge badge-{{ invoice.status }} ms-1">{{ invoice.status }}</span>
-    </h5>
-    <p class="text-muted small mb-0">Uploaded {{ d.get('upload_timestamp','')[:16] | replace('T',' ') }} · {{ invoice.vendor_name or 'Unknown vendor' }}</p>
+      {# Workflow state pill #}
+      {% if wf_st == 'pending_L1' %}<span class="wf-badge wf-l1"><i class="bi bi-hourglass-split"></i>L1 Approval</span>
+      {% elif wf_st == 'pending_L2' %}<span class="wf-badge wf-l2"><i class="bi bi-hourglass-split"></i>L2 Approval</span>
+      {% elif wf_st == 'pending_L3' %}<span class="wf-badge wf-l3"><i class="bi bi-hourglass-split"></i>L3 Approval</span>
+      {% elif wf_st == 'approved' %}<span class="wf-badge wf-approved"><i class="bi bi-check-circle-fill"></i>Approved</span>
+      {% elif wf_st == 'ready_for_payment' %}<span class="wf-badge" style="background:#CFFAFE;color:#0E7490;"><i class="bi bi-credit-card"></i>Ready to Pay</span>
+      {% elif wf_st == 'manual_review' %}<span class="wf-badge wf-rejected"><i class="bi bi-exclamation-triangle"></i>Manual Review</span>
+      {% elif wf_st == 'missing_po' %}<span class="wf-badge wf-rejected"><i class="bi bi-file-earmark-x"></i>Missing PO</span>
+      {% else %}<span class="wf-badge wf-plain"><i class="bi bi-circle"></i>{{ wf_st | title if wf_st else invoice.status | title }}</span>
+      {% endif %}
+    </div>
+    <div class="text-muted mt-1" style="font-size:.8rem;">
+      Uploaded {{ d.get('upload_timestamp','')[:16] | replace('T',' ') }} &middot; {{ invoice.vendor_name or 'Unknown vendor' }}
+    </div>
   </div>
   {% set wf_st = d.get('workflow_status') or invoice.workflow_status %}
   <div class="d-flex gap-2 flex-wrap">
@@ -264,7 +284,7 @@
   <div class="col-md-4">
 
     <!-- Amount Summary -->
-    <div class="card mb-3" style="background: linear-gradient(135deg,#1F4E79,#2E86AB);color:#fff;">
+    <div class="card mb-3" style="background: linear-gradient(135deg,#667eea,#764ba2);color:#fff;">
       <div class="card-body text-center py-4">
         <div style="font-size:.85rem;opacity:.8;">TOTAL AMOUNT</div>
         <div style="font-size:2.2rem;font-weight:700;line-height:1.1;">

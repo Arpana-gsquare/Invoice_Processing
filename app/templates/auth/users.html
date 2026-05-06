@@ -5,11 +5,20 @@
   <li class="breadcrumb-item active">Users</li>
 {% endblock %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <h5 class="fw-bold mb-0"><i class="bi bi-people me-2 text-primary"></i>User Management</h5>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
-    <i class="bi bi-plus-lg me-1"></i> Add User
-  </button>
+<div class="card mb-4" style="border-radius:var(--card-radius);border:none;box-shadow:var(--card-shadow);">
+  <div class="card-body py-3 px-4">
+    <div class="d-flex align-items-center justify-content-between">
+      <div>
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-people me-2" style="color:var(--accent);"></i>User Management
+        </h5>
+        <p class="text-muted small mb-0">Team members and their access roles</p>
+      </div>
+      <button class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addUserModal">
+        <i class="bi bi-plus-lg me-1"></i>Add User
+      </button>
+    </div>
+  </div>
 </div>
 
 <div class="card">
@@ -27,7 +36,7 @@
           <td class="fw-semibold">
             <div class="d-flex align-items-center gap-2">
               <div class="rounded-circle d-flex align-items-center justify-content-center"
-                   style="width:32px;height:32px;background:#EFF6FF;color:#1F4E79;font-weight:700;font-size:.85rem;">
+                   style="width:32px;height:32px;background:rgba(102,126,234,.12);color:var(--accent);font-weight:700;font-size:.85rem;">
                 {{ user.name[0].upper() }}
               </div>
               {{ user.name }}

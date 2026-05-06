@@ -7,21 +7,34 @@
 {% endblock %}
 
 {% block content %}
+<!-- Page header -->
+<div class="card mb-4" style="border-radius:var(--card-radius);border:none;box-shadow:var(--card-shadow);">
+  <div class="card-body py-3 px-4">
+    <div class="d-flex align-items-center justify-content-between">
+      <div>
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-file-earmark-text me-2" style="color:var(--accent);"></i>
+          Proposal {{ proposal_dict.proposal_id or proposal.id }}
+        </h5>
+        <p class="text-muted small mb-0">{{ proposal_dict.vendor_name or 'Proposal / Quotation' }}</p>
+      </div>
+      {% if current_user.is_admin() %}
+      <button type="button" class="btn btn-outline-danger btn-sm"
+              data-url="{{ url_for('proposals.delete_proposal', proposal_id=proposal.id) }}"
+              data-label="{{ (proposal_dict.proposal_id or proposal.id)|e }}"
+              onclick="confirmDeleteProposal(this.dataset.url, this.dataset.label)"
+              title="Delete this Proposal">
+        <i class="bi bi-trash me-1"></i>Delete Proposal
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-12">
     <div class="card">
       <div class="card-body">
-        {% if current_user.is_admin() %}
-        <div class="d-flex justify-content-end mb-3">
-          <button type="button" class="btn btn-outline-danger btn-sm"
-                  data-url="{{ url_for('proposals.delete_proposal', proposal_id=proposal.id) }}"
-                  data-label="{{ (proposal_dict.proposal_id or proposal.id)|e }}"
-                  onclick="confirmDeleteProposal(this.dataset.url, this.dataset.label)"
-                  title="Delete this Proposal">
-            <i class="bi bi-trash me-1"></i>Delete Proposal
-          </button>
-        </div>
-        {% endif %}
         <div class="row g-3">
           <div class="col-md-3">
             <div class="text-muted small">Proposal ID</div>

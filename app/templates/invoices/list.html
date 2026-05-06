@@ -1,55 +1,5 @@
 {% extends "base.html" %}
-{% block extra_css %}
-<style>
-  /* ── PO badges ─────────────────────────────────────────── */
-  .po-match-badge {
-    display: inline-flex; align-items: center; gap: .3rem;
-    padding: .18rem .55rem; border-radius: 20px;
-    font-size: .72rem; font-weight: 600; white-space: nowrap;
-  }
-  .po-matched { background: #D1FAE5; color: #065F46; }
-  .po-nomatch { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
-
-  /* ── Workflow status badges ────────────────────────────── */
-  .wf-badge {
-    display: inline-flex; align-items: center; gap: .3rem;
-    padding: .22rem .65rem; border-radius: 20px;
-    font-size: .75rem; font-weight: 600; white-space: nowrap;
-    cursor: pointer; transition: opacity .15s; border: none;
-    background: none;
-  }
-  .wf-badge:hover { opacity: .75; }
-  .wf-l1       { background: #FEF3C7; color: #92400E; }
-  .wf-l2       { background: #DBEAFE; color: #1E40AF; }
-  .wf-approved { background: #D1FAE5; color: #065F46; }
-  .wf-rejected { background: #FEE2E2; color: #991B1B; }
-  .wf-plain    { background: #F1F5F9; color: #64748B; }
-
-  /* ── Workflow stepper ──────────────────────────────────── */
-  .wf-step { display: flex; align-items: flex-start; gap: .75rem;
-             padding: .7rem 0; position: relative; }
-  .wf-step:not(:last-child)::after {
-    content: ''; position: absolute; left: 15px; top: 38px;
-    width: 2px; height: calc(100% - 8px); background: #E2E8F0; z-index: 0;
-  }
-  .wf-step.s-done:not(:last-child)::after { background: #10B981; }
-  .step-dot {
-    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; z-index: 1;
-    display: flex; align-items: center; justify-content: center; font-size: .85rem;
-  }
-  .step-dot.done   { background: #10B981; color: #fff; }
-  .step-dot.active { background: #2563EB; color: #fff; }
-  .step-dot.reject { background: #EF4444; color: #fff; }
-  .step-dot.wait   { background: #E2E8F0; color: #94A3B8; }
-  .step-body { flex: 1; padding-top: .05rem; }
-  .step-title { font-weight: 600; font-size: .88rem; color: #1E293B; }
-  .step-sub   { font-size: .73rem; margin-top: .1rem; }
-  .step-sub.c-done   { color: #059669; }
-  .step-sub.c-active { color: #2563EB; }
-  .step-sub.c-reject { color: #DC2626; }
-  .step-sub.c-wait   { color: #94A3B8; }
-</style>
-{% endblock %}
+{% block extra_css %}{% endblock %}
 
 {% block title %}Invoices – {{ APP_NAME }}{% endblock %}
 {% block breadcrumb %}
@@ -58,68 +8,65 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <h5 class="fw-bold mb-0">
-    <i class="bi bi-receipt me-2 text-primary"></i>All Invoices
-    <span class="badge bg-light text-muted ms-1" style="font-size:.75rem;">{{ pagination.total }}</span>
+{%- set wf_labels = {
+  'pending_L1':        ('Pending L1',    '#FEF3C7','#92400E'),
+  'pending_L2':        ('Pending L2',    '#DBEAFE','#1E40AF'),
+  'pending_L3':        ('Pending L3',    '#EDE9FE','#5B21B6'),
+  'manual_review':     ('Manual Review', '#FEF9C3','#713F12'),
+  'missing_po':        ('Missing PO',    '#FEE2E2','#991B1B'),
+  'approved':          ('Approved',      '#D1FAE5','#065F46'),
+  'ready_for_payment': ('Ready to Pay',  '#CFFAFE','#0E7490'),
+} -%}
+
+<!-- Page header -->
+<div style="background:#fff;border-radius:14px;padding:14px 20px;
+            border:1px solid #ebebf0;box-shadow:0 1px 6px rgba(0,0,0,.05);
+            display:flex;align-items:center;justify-content:space-between;
+            flex-wrap:wrap;gap:.75rem;margin-bottom:1.4rem;">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <h5 style="font-size:1.05rem;font-weight:800;color:#1f2937;margin:0;">
+      <i class="bi bi-receipt me-2" style="color:#667eea;"></i>All Invoices
+    </h5>
+    <span style="background:#eff0ff;color:#667eea;border:1px solid #c7d0fb;
+                 border-radius:20px;padding:.15rem .6rem;font-size:.68rem;font-weight:700;letter-spacing:.3px;">
+      {{ pagination.total }} invoices
+    </span>
+    {# Active filter pills #}
     {% if filters.get('status') %}
-      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEF3C7;color:#92400E;">
-        {{ filters.get('status') | title }}
-      </span>
+      <span class="badge" style="background:#FEF3C7;color:#92400E;font-size:.72rem;">{{ filters.get('status') | title }}</span>
     {% endif %}
     {% if filters.get('risk_flag') %}
-      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#E0E7FF;color:#3730A3;">
+      <span class="badge" style="background:#E0E7FF;color:#3730A3;font-size:.72rem;">
         {% if filters.get('risk_flag') == 'LOW RISK' %}PROCEED{% else %}{{ filters.get('risk_flag') }}{% endif %}
       </span>
     {% endif %}
     {% if filters.get('po_match_status') %}
-      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEE2E2;color:#BE123C;">
-        PO: {{ filters.get('po_match_status') }}
-      </span>
+      <span class="badge" style="background:#FEE2E2;color:#BE123C;font-size:.72rem;">PO: {{ filters.get('po_match_status') }}</span>
     {% endif %}
     {% if filters.get('workflow_status') %}
-      {% set wf_labels = {
-        'pending_L1': ('Pending L1','#FEF3C7','#92400E'),
-        'pending_L2': ('Pending L2','#DBEAFE','#1E40AF'),
-        'pending_L3': ('Pending L3','#EDE9FE','#5B21B6'),
-        'manual_review': ('Manual Review','#FEF9C3','#713F12'),
-        'missing_po': ('Missing PO','#FEE2E2','#991B1B'),
-        'approved': ('Approved','#D1FAE5','#065F46'),
-        'ready_for_payment': ('Ready to Pay','#CFFAFE','#0E7490'),
-      } %}
       {% set wfl = wf_labels.get(filters.get('workflow_status')) %}
-      {% if wfl %}
-      <span class="badge ms-1 px-2" style="font-size:.72rem;background:{{ wfl[1] }};color:{{ wfl[2] }};">
-        {{ wfl[0] }}
-      </span>
-      {% endif %}
+      {% if wfl %}<span class="badge" style="background:{{ wfl[1] }};color:{{ wfl[2] }};font-size:.72rem;">{{ wfl[0] }}</span>{% endif %}
     {% endif %}
     {% if filters.get('overdue') == '1' %}
-      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEE2E2;color:#991B1B;">
-        Overdue
-      </span>
+      <span class="badge" style="background:#FEE2E2;color:#991B1B;font-size:.72rem;">Overdue</span>
     {% endif %}
     {% if filters.get('exclude_risk_flag') %}
-      <span class="badge ms-1 px-2" style="font-size:.72rem;background:#F1F5F9;color:#64748B;border:1px solid #E2E8F0;">
-        Excl. {{ filters.get('exclude_risk_flag') }}
-      </span>
+      <span class="badge" style="background:#F1F5F9;color:#64748B;border:1px solid #E2E8F0;font-size:.72rem;">Excl. {{ filters.get('exclude_risk_flag') }}</span>
     {% endif %}
-  </h5>
+  </div>
   <div class="d-flex gap-2">
     <div class="dropdown">
-      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" style="border-radius:8px;">
         <i class="bi bi-download me-1"></i>Export
       </button>
-      <ul class="dropdown-menu">
-        <li><a class="dropdown-item" href="{{ url_for('invoices.export', fmt='csv', **filters) }}">
-          <i class="bi bi-filetype-csv me-2 text-success"></i>Export CSV
-        </a></li>
-        <li><a class="dropdown-item" href="{{ url_for('invoices.export', fmt='excel', **filters) }}">
-          <i class="bi bi-file-earmark-excel me-2 text-success"></i>Export Excel
-        </a></li>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="{{ url_for('invoices.export', fmt='csv') }}">
+          <i class="bi bi-filetype-csv me-2 text-success"></i>Export CSV</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('invoices.export', fmt='excel') }}">
+          <i class="bi bi-file-earmark-excel me-2 text-success"></i>Export Excel</a></li>
       </ul>
     </div>
-    <a href="{{ url_for('invoices.upload') }}" class="btn btn-primary btn-sm">
+    <a href="{{ url_for('invoices.upload') }}" class="btn btn-primary btn-sm" style="border-radius:8px;">
       <i class="bi bi-plus-lg me-1"></i>Upload
     </a>
   </div>

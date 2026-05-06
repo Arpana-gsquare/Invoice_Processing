@@ -4,86 +4,281 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{{ APP_NAME }}{% endblock %}</title>
-  <!-- Bootstrap 5.3 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
+    /* ═══ Design Tokens ════════════════════════════════════════════════════ */
     :root {
-      --sidebar-width: 240px;
-      --primary: #1F4E79;
-      --accent: #2E86AB;
+      --sidebar-width: 248px;
+      --sidebar-bg:    #1a1f3a;
+      --sidebar-hover: rgba(255,255,255,.07);
+      --sidebar-active:#667eea;
+      --accent:        #667eea;
+      --accent2:       #764ba2;
+      --page-bg:       #f5f6fa;
+      --card-radius:   14px;
+      --card-shadow:   0 2px 12px rgba(0,0,0,.07);
     }
-    body { background: #F0F4F8; font-family: 'Segoe UI', system-ui, sans-serif; }
-    /* ─── Sidebar ───────────────────────────────────────── */
+
+    /* ═══ Global ════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      background: var(--page-bg);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    /* ═══ Sidebar ═══════════════════════════════════════════════════════════ */
     #sidebar {
-      width: var(--sidebar-width); min-height: 100vh;
-      background: var(--primary); position: fixed; top: 0; left: 0; z-index: 1000;
+      width: var(--sidebar-width);
+      min-height: 100vh;
+      background: var(--sidebar-bg);
+      position: fixed; top: 0; left: 0; z-index: 1040;
       display: flex; flex-direction: column;
+      box-shadow: 4px 0 24px rgba(0,0,0,.18);
+      overflow-y: auto;
     }
+
+    /* Brand */
     #sidebar .brand {
-      padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,.12);
-      color: #fff; font-size: 1.2rem; font-weight: 700; letter-spacing: .5px;
+      padding: 1.35rem 1.4rem 1.1rem;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      display: flex; align-items: center; gap: .6rem;
     }
-    #sidebar .brand span { color: #64B5F6; }
-    #sidebar .nav-link {
-      color: rgba(255,255,255,.75); padding: .6rem 1.5rem;
-      border-radius: 0; transition: all .2s; font-size: .9rem;
+    #sidebar .brand-icon {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; color: #fff;
     }
-    #sidebar .nav-link:hover, #sidebar .nav-link.active {
-      color: #fff; background: rgba(255,255,255,.12);
-      border-left: 3px solid #64B5F6; padding-left: calc(1.5rem - 3px);
+    #sidebar .brand-text {
+      font-size: 1.05rem; font-weight: 800; letter-spacing: .3px; color: #fff;
     }
-    #sidebar .nav-link i { margin-right: .6rem; width: 20px; text-align: center; }
+    #sidebar .brand-text span { color: #a78bfa; }
+
+    /* Nav links */
     #sidebar .nav-section {
-      padding: .5rem 1.5rem .25rem; font-size: .7rem;
-      text-transform: uppercase; color: rgba(255,255,255,.4); letter-spacing: 1px;
+      padding: .9rem 1.3rem .3rem;
+      font-size: .65rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 1.2px;
+      color: rgba(255,255,255,.28);
     }
+    #sidebar .nav-link {
+      display: flex; align-items: center; gap: .6rem;
+      color: rgba(255,255,255,.62);
+      padding: .55rem 1.3rem;
+      border-radius: 0;
+      font-size: .875rem; font-weight: 500;
+      transition: all .18s;
+      border-left: 3px solid transparent;
+      margin: .05rem 0;
+    }
+    #sidebar .nav-link i {
+      width: 20px; text-align: center; font-size: 1rem; flex-shrink: 0;
+    }
+    #sidebar .nav-link:hover {
+      color: #fff;
+      background: var(--sidebar-hover);
+      border-left-color: rgba(102,126,234,.4);
+    }
+    #sidebar .nav-link.active {
+      color: #fff;
+      background: linear-gradient(90deg, rgba(102,126,234,.22) 0%, rgba(102,126,234,.04) 100%);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Sidebar footer */
     #sidebar .sidebar-footer {
-      margin-top: auto; padding: 1rem 1.5rem;
-      border-top: 1px solid rgba(255,255,255,.12);
+      margin-top: auto;
+      padding: .9rem 1.3rem 1rem;
+      border-top: 1px solid rgba(255,255,255,.07);
     }
-    /* ─── Main Content ──────────────────────────────────── */
+    #sidebar .user-avatar {
+      width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .85rem; color: #fff;
+    }
+
+    /* ═══ Main Content ══════════════════════════════════════════════════════ */
     #main-content { margin-left: var(--sidebar-width); min-height: 100vh; }
+
+    /* Topbar */
     .topbar {
-      background: #fff; border-bottom: 1px solid #E2E8F0;
-      padding: .75rem 1.5rem; position: sticky; top: 0; z-index: 900;
+      background: #fff;
+      border-bottom: 1px solid #eaecf0;
+      padding: .7rem 1.6rem;
+      position: sticky; top: 0; z-index: 900;
+      display: flex; align-items: center; gap: .75rem;
+      box-shadow: 0 1px 6px rgba(0,0,0,.05);
     }
-    .page-content { padding: 1.5rem; }
-    /* ─── Cards ─────────────────────────────────────────── */
-    .card { border: none; box-shadow: 0 1px 4px rgba(0,0,0,.08); border-radius: 10px; }
-    .stat-card { border-radius: 12px; padding: 1.25rem 1.5rem; }
-    .stat-card .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
-    .stat-card .stat-label { font-size: .82rem; opacity: .8; margin-top: .25rem; }
-    /* ─── Risk Badges ───────────────────────────────────── */
-    .badge-LOW-RISK      { background: #D1FAE5; color: #065F46; }
+    .topbar .breadcrumb { margin: 0; font-size: .84rem; }
+    .topbar .breadcrumb-item + .breadcrumb-item::before { color: #c4c9d4; }
+    .topbar .breadcrumb-item a { color: var(--accent); text-decoration: none; }
+    .topbar .breadcrumb-item.active { color: #6b7280; }
+
+    /* Page wrapper */
+    .page-content { padding: 1.6rem; background: var(--page-bg); }
+
+    /* ═══ Cards ════════════════════════════════════════════════════════════ */
+    .card {
+      border: 1px solid #ebebf0 !important;
+      border-radius: var(--card-radius) !important;
+      box-shadow: var(--card-shadow) !important;
+    }
+    .card-header {
+      background: #f9fafb;
+      border-bottom: 1px solid #f0f0f5;
+      border-radius: calc(var(--card-radius) - 1px) calc(var(--card-radius) - 1px) 0 0 !important;
+      font-size: .84rem; font-weight: 700; color: #374151;
+    }
+
+    /* ═══ Tables ════════════════════════════════════════════════════════════ */
+    .table th {
+      background: #f9fafb !important;
+      font-size: .73rem !important; font-weight: 700 !important;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: #6b7280 !important; border-top: none !important;
+      padding: .75rem 1rem !important;
+    }
+    .table td { padding: .75rem 1rem !important; vertical-align: middle; font-size: .875rem; }
+    .table tbody tr:hover { background: #f5f6ff !important; }
+    .table-responsive { border-radius: var(--card-radius); }
+
+    /* ═══ Topbar "New Invoice" button ═══════════════════════════════════════ */
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+      border: none !important;
+      box-shadow: 0 3px 10px rgba(102,126,234,.3) !important;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 5px 16px rgba(102,126,234,.44) !important;
+      transform: translateY(-1px);
+    }
+
+    /* ═══ Risk Badges ═══════════════════════════════════════════════════════ */
+    .risk-badge, .status-badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .22rem .65rem; border-radius: 20px;
+      font-size: .75rem; font-weight: 600; white-space: nowrap;
+    }
+    .badge-LOW-RISK  { background: #D1FAE5; color: #065F46; }
     .badge-MODERATE  { background: #FEF3C7; color: #92400E; }
     .badge-HIGH-RISK { background: #FEE2E2; color: #991B1B; }
     .badge-DUPLICATE { background: #E0E7FF; color: #3730A3; }
-    /* ─── Status Badges ─────────────────────────────────── */
-    .badge-pending  { background: #FEF3C7; color: #92400E; }
-    .badge-approved { background: #D1FAE5; color: #065F46; }
-    .badge-rejected { background: #FEE2E2; color: #991B1B; }
-    /* ─── Table ─────────────────────────────────────────── */
-    .table th { background: #F8FAFC; font-size: .8rem; text-transform: uppercase;
-                letter-spacing: .5px; color: #64748B; border-top: none; }
-    .table td { vertical-align: middle; font-size: .9rem; }
-    .table tbody tr:hover { background: #F0F9FF; cursor: pointer; }
-    /* ─── Misc ──────────────────────────────────────────── */
-    .risk-badge, .status-badge {
-      padding: .2rem .65rem; border-radius: 20px;
-      font-size: .75rem; font-weight: 600;
+    .badge-pending   { background: #FEF3C7; color: #92400E; }
+    .badge-approved  { background: #D1FAE5; color: #065F46; }
+    .badge-rejected  { background: #FEE2E2; color: #991B1B; }
+
+    /* ═══ PO Match Badges ═══════════════════════════════════════════════════ */
+    .po-match-badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .18rem .55rem; border-radius: 20px;
+      font-size: .72rem; font-weight: 600; white-space: nowrap;
     }
-    .overdue-indicator { width: 8px; height: 8px; border-radius: 50%;
-                         background: #EF4444; display: inline-block; margin-right: 4px; }
+    .po-matched { background: #D1FAE5; color: #065F46; }
+    .po-nomatch { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
+
+    /* ═══ Workflow Status Badges ════════════════════════════════════════════ */
+    .wf-badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .22rem .65rem; border-radius: 20px;
+      font-size: .75rem; font-weight: 600; white-space: nowrap;
+      cursor: pointer; transition: opacity .15s;
+      border: none; background: none;
+    }
+    .wf-badge:hover { opacity: .75; }
+    .wf-l1       { background: #FEF3C7; color: #92400E; }
+    .wf-l2       { background: #DBEAFE; color: #1E40AF; }
+    .wf-l3       { background: #EDE9FE; color: #5B21B6; }
+    .wf-approved { background: #D1FAE5; color: #065F46; }
+    .wf-rejected { background: #FEE2E2; color: #991B1B; }
+    .wf-plain    { background: #F1F5F9; color: #64748B; }
+
+    /* ═══ 3-Level Approval Stepper ══════════════════════════════════════════ */
+    .wf-step {
+      display: flex; align-items: flex-start; gap: .75rem;
+      padding: .7rem 0; position: relative;
+    }
+    .wf-step:not(:last-child)::after {
+      content: ''; position: absolute; left: 15px; top: 38px;
+      width: 2px; height: calc(100% - 8px);
+      background: #E2E8F0; z-index: 0;
+    }
+    .wf-step.s-done:not(:last-child)::after { background: #10B981; }
+    .step-dot {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; z-index: 1;
+      display: flex; align-items: center; justify-content: center; font-size: .85rem;
+    }
+    .step-dot.done   { background: #10B981; color: #fff; }
+    .step-dot.active { background: #667eea; color: #fff; }
+    .step-dot.reject { background: #EF4444; color: #fff; }
+    .step-dot.wait   { background: #E2E8F0; color: #94A3B8; }
+    .step-body  { flex: 1; padding-top: .05rem; }
+    .step-title { font-weight: 600; font-size: .88rem; color: #1E293B; }
+    .step-sub   { font-size: .73rem; margin-top: .1rem; }
+    .step-sub.c-done   { color: #059669; }
+    .step-sub.c-active { color: #667eea; }
+    .step-sub.c-reject { color: #DC2626; }
+    .step-sub.c-wait   { color: #94A3B8; }
+
+    /* ═══ Stat / KPI Cards ══════════════════════════════════════════════════ */
+    .stat-card { border-radius: 14px !important; padding: 1.25rem 1.4rem; }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 800; line-height: 1; }
+    .stat-card .stat-label { font-size: .78rem; opacity: .82; margin-top: .3rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+    .kpi-tile {
+      cursor: pointer; border-radius: 16px !important; border: none !important;
+      overflow: hidden; transition: transform .2s, box-shadow .25s;
+    }
+    .kpi-tile:hover { transform: translateY(-4px); box-shadow: 0 14px 36px rgba(0,0,0,.18) !important; }
+
+    /* ═══ Overdue Indicator ════════════════════════════════════════════════ */
+    .overdue-indicator {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #EF4444; display: inline-block; margin-right: 4px;
+    }
+
+    /* ═══ Flash Alerts ══════════════════════════════════════════════════════ */
+    .alert {
+      border-radius: 10px !important;
+      border: none !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+
+    /* ═══ Form Controls ═════════════════════════════════════════════════════ */
+    .form-control, .form-select {
+      border-radius: 8px !important;
+      border-color: #e5e7eb;
+      font-size: .875rem;
+    }
+    .form-control:focus, .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(102,126,234,.15) !important;
+    }
+
+    /* ═══ Modals ════════════════════════════════════════════════════════════ */
+    .modal-content {
+      border: none !important;
+      border-radius: 16px !important;
+      box-shadow: 0 20px 60px rgba(0,0,0,.18) !important;
+    }
+    .modal-header { border-bottom: 1px solid #f3f4f6 !important; }
+    .modal-footer { border-top: 1px solid #f3f4f6 !important; }
+
+    /* ═══ Misc Utilities ════════════════════════════════════════════════════ */
+    .text-accent { color: var(--accent); }
+    .bg-accent   { background: var(--accent); }
+
+    /* ═══ Responsive ════════════════════════════════════════════════════════ */
     .sidebar-toggle { display: none; }
     @media (max-width: 768px) {
       #sidebar { transform: translateX(-100%); transition: transform .3s; }
       #sidebar.show { transform: translateX(0); }
       #main-content { margin-left: 0; }
-      .sidebar-toggle { display: block; }
+      .sidebar-toggle { display: flex !important; }
     }
   </style>
   {% block extra_css %}{% endblock %}
@@ -91,11 +286,20 @@
 <body>
 
 {% if current_user.is_authenticated %}
-<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<!-- ═══════════════════ SIDEBAR ═══════════════════════════════════════════ -->
 <nav id="sidebar">
-  <div class="brand"><i class="bi bi-file-earmark-text-fill"></i> INVO<span>RATOR</span></div>
-  <ul class="nav flex-column mt-2">
-    <li class="nav-item">
+
+  <!-- Brand -->
+  <div class="brand">
+    <div class="brand-icon"><i class="bi bi-file-earmark-text-fill"></i></div>
+    <div class="brand-text">INVO<span>RATOR</span></div>
+  </div>
+
+  <!-- Navigation -->
+  <ul class="nav flex-column mt-1 pb-2" style="flex:1;">
+
+    <!-- Core -->
+    <li class="nav-item mt-1">
       <a class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}"
          href="{{ url_for('dashboard.index') }}">
         <i class="bi bi-speedometer2"></i> Dashboard
@@ -108,12 +312,14 @@
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('invoices.upload') }}">
-        <i class="bi bi-cloud-upload"></i> Upload
+      <a class="nav-link {% if request.endpoint == 'invoices.upload' %}active{% endif %}"
+         href="{{ url_for('invoices.upload') }}">
+        <i class="bi bi-cloud-upload"></i> Upload Invoice
       </a>
     </li>
 
-    <li class="nav-section mt-2">Procurement</li>
+    <!-- Procurement -->
+    <li class="nav-section">Procurement</li>
     <li class="nav-item">
       <a class="nav-link {% if 'po.' in (request.endpoint or '') %}active{% endif %}"
          href="{{ url_for('po.list_pos') }}">
@@ -137,7 +343,8 @@
       </a>
     </li>
 
-    <li class="nav-section mt-2">Export</li>
+    <!-- Export -->
+    <li class="nav-section">Export</li>
     <li class="nav-item">
       <a class="nav-link" href="{{ url_for('invoices.export', fmt='csv') }}">
         <i class="bi bi-filetype-csv"></i> Export CSV
@@ -149,8 +356,9 @@
       </a>
     </li>
 
+    <!-- Admin -->
     {% if current_user.is_admin() %}
-    <li class="nav-section mt-2">Admin</li>
+    <li class="nav-section">Admin</li>
     <li class="nav-item">
       <a class="nav-link {% if 'admin.' in (request.endpoint or '') %}active{% endif %}"
          href="{{ url_for('admin.users') }}">
@@ -164,29 +372,41 @@
       </a>
     </li>
     {% endif %}
+
   </ul>
 
+  <!-- User Footer -->
   <div class="sidebar-footer">
-    <div class="d-flex align-items-center">
-      <div class="rounded-circle bg-accent d-flex align-items-center justify-content-center me-2"
-           style="width:32px;height:32px;background:#2E86AB;color:#fff;font-weight:600;font-size:.85rem;">
-        {{ current_user.name[0].upper() }}
+    <div class="d-flex align-items-center gap-2">
+      <div class="user-avatar">{{ current_user.name[0].upper() }}</div>
+      <div style="overflow:hidden;">
+        <div style="color:#fff;font-size:.83rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          {{ current_user.name }}
+        </div>
+        <div style="color:rgba(255,255,255,.42);font-size:.72rem;">
+          {% if current_user.role == 'admin' %}Administrator
+          {% elif current_user.role == 'L1' %}L1 Reviewer
+          {% elif current_user.role == 'L2' %}L2 Reviewer
+          {% elif current_user.role == 'L3' %}Final Approver
+          {% else %}{{ current_user.role }}{% endif %}
+        </div>
       </div>
-      <div>
-        <div style="color:#fff;font-size:.85rem;font-weight:500;">{{ current_user.name }}</div>
-        <div style="color:rgba(255,255,255,.5);font-size:.75rem;">{{ current_user.role }}</div>
-      </div>
-      <a href="{{ url_for('auth.logout') }}" class="ms-auto" title="Logout">
-        <i class="bi bi-box-arrow-right text-white-50"></i>
+      <a href="{{ url_for('auth.logout') }}" class="ms-auto" title="Sign out"
+         style="color:rgba(255,255,255,.4);transition:color .15s;"
+         onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.4)'">
+        <i class="bi bi-box-arrow-right"></i>
       </a>
     </div>
   </div>
 </nav>
 
-<!-- ═══════════════ MAIN ═══════════════ -->
+<!-- ═══════════════════ MAIN ═══════════════════════════════════════════════ -->
 <div id="main-content">
-  <div class="topbar d-flex align-items-center">
-    <button class="btn btn-sm btn-outline-secondary sidebar-toggle me-2" onclick="toggleSidebar()">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <button class="btn btn-sm btn-outline-secondary sidebar-toggle d-none"
+            onclick="toggleSidebar()" style="border-radius:8px;">
       <i class="bi bi-list"></i>
     </button>
     <nav aria-label="breadcrumb">
@@ -197,24 +417,32 @@
       </ol>
     </nav>
     <div class="ms-auto d-flex align-items-center gap-2">
-      <a href="{{ url_for('invoices.upload') }}" class="btn btn-sm btn-primary">
-        <i class="bi bi-plus-lg"></i> New Invoice
+      {% if current_user.role in ('L1','L2','L3') %}
+      <a href="{{ url_for('invoices.list_invoices', workflow_status='pending_'+current_user.role) }}"
+         class="btn btn-sm"
+         style="background:#EDE9FE;color:#5B21B6;border:none;border-radius:8px;font-size:.78rem;font-weight:600;">
+        <i class="bi bi-hourglass-split me-1"></i>My Queue
+      </a>
+      {% endif %}
+      <a href="{{ url_for('invoices.upload') }}"
+         class="btn btn-primary btn-sm" style="border-radius:8px;">
+        <i class="bi bi-plus-lg me-1"></i>New Invoice
       </a>
     </div>
   </div>
 
+  <!-- Page body -->
   <div class="page-content">
-    <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <div class="mb-3">
-          {% for cat, msg in messages %}
-            <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert">
-              {{ msg }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-          {% endfor %}
+      <div class="mb-3">
+        {% for cat, msg in messages %}
+        <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert">
+          {{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+        {% endfor %}
+      </div>
       {% endif %}
     {% endwith %}
 
