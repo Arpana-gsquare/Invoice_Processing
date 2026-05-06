@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}User Management – {{ APP_NAME }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
+  <li class="breadcrumb-item active">User Management</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .role-badge {
+    display:inline-block; padding:.22rem .65rem; border-radius:20px;
+    font-size:.72rem; font-weight:700; white-space:nowrap;
+  }
+  .role-admin { background:#EDE9FE; color:#5B21B6; }
+  .role-L1    { background:#FEF3C7; color:#92400E; }
+  .role-L2    { background:#DBEAFE; color:#1E40AF; }
+  .role-L3    { background:#D1FAE5; color:#065F46; }
+  .inactive-row { opacity:.5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h5 class="fw-bold mb-0">
+    <i class="bi bi-people-fill me-2 text-primary"></i>User Management
+    <span class="badge bg-light text-muted ms-1" style="font-size:.75rem;">{{ users|length }}</span>
+  </h5>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
+    <i class="bi bi-plus-lg me-1"></i>Add User
+  </button>
+</div>
+
+<!-- Role legend -->
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  {% for r in roles %}
+  <span class="role-badge role-{{ r }}">{{ r }}</span>
+  {% endfor %}
+  <small class="text-muted align-self-center ms-2">
+    L1 = First reviewer · L2 = Second reviewer · L3 = Final approver · Admin = Full access
+  </small>
+</div>
+
+<!-- Users table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Last Login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr class="{% if not u.is_active %}inactive-row{% endif %}">
+          <td class="fw-semibold">
+            {{ u.name }}
+            {% if u.id == current_user.id %}
+            <span class="badge bg-primary ms-1" style="font-size:.65rem;">You</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ u.email }}</td>
+          <td>
+            <span class="role-badge role-{{ u.role }}">{{ u.role }}</span>
+          </td>
+          <td>
+            {% if u.is_active %}
+            <span class="badge" style="background:#D1FAE5;color:#065F46;">Active</span>
+            {% else %}
+            <span class="badge" style="background:#FEE2E2;color:#991B1B;">Inactive</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">
+            {{ u.to_dict().created_at.strftime('%b %d, %Y') if u.to_dict().created_at else '—' }}
+          </td>
+          <td class="small text-muted">
+            {{ u.to_dict().last_login.strftime('%b %d, %Y %H:%M') if u.to_dict().last_login else 'Never' }}
+          </td>
+          <td onclick="event.stopPropagation()">
+            {% if u.id != current_user.id %}
+            <div class="d-flex gap-1">
+              <!-- Change role -->
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                      title="Change role"
+                      onclick="openRoleModal('{{ u.id }}','{{ u.name }}','{{ u.role }}')">
+                <i class="bi bi-person-gear"></i>
+              </button>
+              <!-- Toggle active -->
+              <form method="POST"
+                    action="{{ url_for('admin.toggle_active', user_id=u.id) }}"
+                    style="display:inline;">
+                <button type="submit"
+                        class="btn btn-sm {% if u.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %} py-0 px-2"
+                        title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
+                        onclick="return confirm('{% if u.is_active %}Deactivate{% else %}Activate{% endif %} {{ u.name }}?')">
+                  <i class="bi bi-{% if u.is_active %}pause-circle{% else %}play-circle{% endif %}"></i>
+                </button>
+              </form>
+              <!-- Soft delete -->
+              {% if u.is_active %}
+              <form method="POST"
+                    action="{{ url_for('admin.delete_user', user_id=u.id) }}"
+                    style="display:inline;">
+                <button type="submit"
+                        class="btn btn-sm btn-outline-danger py-0 px-2"
+                        title="Deactivate user"
+                        onclick="return confirm('Deactivate {{ u.name }}? They will no longer be able to log in.')">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+            {% else %}
+            <small class="text-muted">—</small>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center py-5 text-muted">
+            No users found. Create one using the button above.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Create User Modal ── -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0">
+        <h6 class="modal-title fw-bold">Create New User</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin.create_user') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Full Name</label>
+            <input type="text" name="name" class="form-control" required placeholder="e.g. Priya Sharma">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Email</label>
+            <input type="email" name="email" class="form-control" required placeholder="user@company.com">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Password</label>
+            <input type="password" name="password" class="form-control" required minlength="8"
+                   placeholder="Minimum 8 characters">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Role</label>
+            <select name="role" class="form-select">
+              {% for r in roles %}
+              <option value="{{ r }}" {% if r == 'L1' %}selected{% endif %}>{{ r }}
+                {% if r == 'L1' %} – First Reviewer
+                {% elif r == 'L2' %} – Second Reviewer
+                {% elif r == 'L3' %} – Final Approver
+                {% elif r == 'admin' %} – Administrator
+                {% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Change Role Modal ── -->
+<div class="modal fade" id="roleModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:360px;">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0">
+        <h6 class="modal-title fw-bold">Change Role</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="roleForm">
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Changing role for: <strong id="roleUserName"></strong>
+          </p>
+          <select name="role" id="roleSelect" class="form-select">
+            {% for r in roles %}
+            <option value="{{ r }}">{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openRoleModal(userId, userName, currentRole) {
+  document.getElementById('roleForm').action = '/admin/users/' + userId + '/role';
+  document.getElementById('roleUserName').textContent = userName;
+  var sel = document.getElementById('roleSelect');
+  for (var i = 0; i < sel.options.length; i++) {
+    sel.options[i].selected = (sel.options[i].value === currentRole);
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('roleModal')).show();
+}
+</script>
+{% endblock %}

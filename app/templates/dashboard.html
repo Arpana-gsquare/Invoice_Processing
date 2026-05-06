@@ -6,21 +6,29 @@
 
 {% block extra_css %}
 <style>
-  /* Clickable tile */
-  .kpi-tile {
-    cursor: pointer;
-    transition: transform .15s ease, box-shadow .15s ease;
+  .kpi-tile { cursor:pointer; transition:transform .15s ease,box-shadow .15s ease; }
+  .kpi-tile:hover { transform:translateY(-3px); box-shadow:0 6px 18px rgba(0,0,0,.13); }
+  a.tile-link { text-decoration:none; color:inherit; display:block; }
+
+  /* Workflow tab pills */
+  .wf-tabs { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .wf-tab  {
+    display:inline-flex; align-items:center; gap:.4rem;
+    padding:.3rem .9rem; border-radius:20px; font-size:.78rem; font-weight:600;
+    border:1.5px solid transparent; cursor:pointer; text-decoration:none;
+    transition:background .15s,border-color .15s;
   }
-  .kpi-tile:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 18px rgba(0,0,0,.13);
-  }
-  /* Remove blue underline / colour bleed from the <a> wrapper */
-  a.tile-link {
-    text-decoration: none;
-    color: inherit;
-    display: block;
-  }
+  .wf-tab .tab-count { background:rgba(0,0,0,.1); border-radius:10px; padding:.05rem .4rem; font-size:.7rem; }
+  .wf-tab:hover { opacity:.85; }
+  .wf-tab.active { border-color: currentColor !important; }
+  .tab-l1  { background:#FEF3C7; color:#92400E; }
+  .tab-l2  { background:#DBEAFE; color:#1E40AF; }
+  .tab-l3  { background:#EDE9FE; color:#5B21B6; }
+  .tab-rev { background:#FEF9C3; color:#713F12; }
+  .tab-mpo { background:#FEE2E2; color:#991B1B; }
+  .tab-app { background:#D1FAE5; color:#065F46; }
+  .tab-pay { background:#CFFAFE; color:#0E7490; }
+  .tab-all { background:#F1F5F9; color:#475569; }
 </style>
 {% endblock %}
 
@@ -50,10 +58,10 @@
   </div>
 
   <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', po_match_status='NO_PO_FOUND') }}">
+    <a class="tile-link" href="{{ url_for('invoices.list_invoices', workflow_status='missing_po') }}">
       <div class="stat-card card kpi-tile" style="border-left:4px solid #F43F5E;">
-        <div class="stat-value" style="color:#BE123C;">{{ stats.no_po_count }}</div>
-        <div class="stat-label text-muted">No PO Match</div>
+        <div class="stat-value" style="color:#BE123C;">{{ stats.wf_missing_po }}</div>
+        <div class="stat-label text-muted">Missing PO</div>
       </div>
     </a>
   </div>
@@ -109,6 +117,61 @@
     </a>
   </div>
 
+</div>
+
+<!-- ── Workflow Approval Queue Tabs ──────────────────── -->
+<div class="card mb-4 p-3">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <span class="fw-semibold text-muted" style="font-size:.82rem;">
+      <i class="bi bi-diagram-3 me-1"></i>WORKFLOW QUEUE
+    </span>
+    {% if my_queue_state %}
+    <span class="badge" style="background:#FEF3C7;color:#92400E;font-size:.72rem;">
+      Your queue: {{ my_queue_count }} invoice{{ 's' if my_queue_count != 1 }}
+    </span>
+    {% endif %}
+  </div>
+  <div class="wf-tabs">
+    <a href="{{ url_for('invoices.list_invoices', workflow_status='pending_L1') }}"
+       class="wf-tab tab-l1">
+      <i class="bi bi-hourglass-split"></i> Pending L1
+      <span class="tab-count">{{ stats.wf_pending_L1 }}</span>
+    </a>
+    <a href="{{ url_for('invoices.list_invoices', workflow_status='pending_L2') }}"
+       class="wf-tab tab-l2">
+      <i class="bi bi-hourglass-split"></i> Pending L2
+      <span class="tab-count">{{ stats.wf_pending_L2 }}</span>
+    </a>
+    <a href="{{ url_for('invoices.list_invoices', workflow_status='pending_L3') }}"
+       class="wf-tab tab-l3">
+      <i class="bi bi-hourglass-split"></i> Pending L3
+      <span class="tab-count">{{ stats.wf_pending_L3 }}</span>
+    </a>
+    <a href="{{ url_for('invoices.list_invoices', workflow_status='manual_review') }}"
+       class="wf-tab tab-rev">
+      <i class="bi bi-pencil-square"></i> Manual Review
+      <span class="tab-count">{{ stats.wf_manual_review }}</span>
+    </a>
+    <a href="{{ url_for('invoices.list_invoices', workflow_status='missing_po') }}"
+       class="wf-tab tab-mpo">
+      <i class="bi bi-file-x"></i> Missing PO
+      <span class="tab-count">{{ stats.wf_missing_po }}</span>
+    </a>
+    <a href="{{ url_for('invoices.list_invoices', workflow_status='approved') }}"
+       class="wf-tab tab-app">
+      <i class="bi bi-check-circle-fill"></i> Approved
+      <span class="tab-count">{{ stats.wf_approved }}</span>
+    </a>
+    <a href="{{ url_for('invoices.list_invoices', workflow_status='ready_for_payment') }}"
+       class="wf-tab tab-pay">
+      <i class="bi bi-credit-card-fill"></i> Ready to Pay
+      <span class="tab-count">{{ stats.wf_ready }}</span>
+    </a>
+    <a href="{{ url_for('invoices.list_invoices') }}"
+       class="wf-tab tab-all">
+      <i class="bi bi-list-ul"></i> All
+    </a>
+  </div>
 </div>
 
 <!-- ── Charts Row ────────────────────────────────────── -->

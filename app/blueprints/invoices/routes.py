@@ -100,8 +100,14 @@ def _process_single_upload(file) -> dict:
 
         invoice = Invoice.create(doc)
 
-        # Auto PO matching (non-fatal) — score >= 50 → MATCHED → auto-initiate L1 workflow
+        # Mark as processed after AI extraction
+        invoice.update({"workflow_status": "processed", "status": "pending"})
+
+        # Auto PO matching — routes invoice to correct workflow state
         try:
+            from ...models.approval_workflow import ApprovalWorkflow
+            from ...services.workflow_service import advance_workflow
+
             po_result = match_invoice_to_po(invoice.to_dict())
             invoice.update({
                 "po_id":           po_result["po_id"],
@@ -109,18 +115,34 @@ def _process_single_upload(file) -> dict:
                 "match_score":     po_result["match_score"],
                 "match_details":   po_result["match_details"],
             })
+            po_status = po_result["po_match_status"]
             logger.info("PO match for %s: %s (score %d)",
-                        original_name, po_result["po_match_status"], po_result["match_score"])
+                        original_name, po_status, po_result["match_score"])
 
-            if po_result["po_match_status"] == "MATCHED":
-                from ...models.approval_workflow import ApprovalWorkflow
+            if po_status == "full":
+                # Full match → initiate 3-level workflow → pending_L1
                 ApprovalWorkflow.initiate(
                     invoice_id=invoice.id,
                     initiated_by=current_user.id,
                     initiated_by_name=current_user.name,
                 )
+                advance_workflow(invoice, "pending_L1",
+                                 current_user.id, current_user.name,
+                                 "Full PO match — auto-initiated")
                 invoice.update({"workflow_level": 1})
-                logger.info("Approval workflow initiated for %s (PO matched)", original_name)
+
+            elif po_status == "partial":
+                # Partial match → manual_review
+                advance_workflow(invoice, "manual_review",
+                                 current_user.id, current_user.name,
+                                 "Partial PO match — manual review required")
+
+            else:
+                # No match → missing_po
+                advance_workflow(invoice, "missing_po",
+                                 current_user.id, current_user.name,
+                                 "No PO found")
+
         except Exception as po_exc:
             logger.warning("PO matching failed for %s: %s", original_name, po_exc)
 
@@ -148,7 +170,8 @@ def _process_single_upload(file) -> dict:
                 "filename":              original_name,
                 "confidence":            extracted.get("extraction_confidence"),
                 "risk_flag":             risk["risk_flag"],
-                "po_match_status":       invoice._doc.get("po_match_status", "NO_PO_FOUND"),
+                "po_match_status":       invoice._doc.get("po_match_status", "none"),
+                "workflow_status":       invoice._doc.get("workflow_status", "processed"),
                 "proposal_match_status": invoice._doc.get("proposal_match_status", "NO_PROPOSAL"),
             },
         )
@@ -390,149 +413,254 @@ def delete(invoice_id: str):
     return redirect(url_for("invoices.list_invoices"))
 
 
-# -- Approval Workflow --------------------------------------------------------
+# -- Export -----------------------------------------------------------------------
+
+@invoices_bp.route("/export")
+@login_required
+def export():
+    """Export all (non-deleted) invoices as CSV or Excel."""
+    fmt = request.args.get("fmt", "csv").lower()
+    invoices, _ = Invoice.list_all(per_page=10_000)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    if fmt == "excel":
+        data, mimetype, filename = (
+            export_excel(invoices),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "invoices_%s.xlsx" % timestamp,
+        )
+    else:
+        data, mimetype, filename = (
+            export_csv(invoices),
+            "text/csv",
+            "invoices_%s.csv" % timestamp,
+        )
+
+    from flask import Response
+    return Response(
+        data,
+        mimetype=mimetype,
+        headers={"Content-Disposition": "attachment; filename=%s" % filename},
+    )
+
+
+# -- Approval Workflow (3-level: L1 → L2 → L3) --------------------------------
 
 @invoices_bp.route("/<invoice_id>/workflow")
 @login_required
 def workflow_status(invoice_id: str):
-    """
-    JSON endpoint — returns the full workflow state for the stepper modal.
-    GET /invoices/<id>/workflow
-    """
+    """JSON: full workflow state for the stepper modal."""
     from ...models.approval_workflow import ApprovalWorkflow
     wf = ApprovalWorkflow.get_by_invoice(invoice_id)
-    if not wf:
-        return jsonify({"workflow": None})
-    return jsonify({"workflow": wf.to_dict()})
+    invoice = Invoice.get_by_id(invoice_id)
+    inv_wf  = invoice.workflow_status if invoice else None
+    return jsonify({
+        "workflow":         wf.to_dict() if wf else None,
+        "workflow_status":  inv_wf,
+    })
 
 
-@invoices_bp.route("/<invoice_id>/workflow/approve", methods=["POST"])
-@login_required
-def workflow_approve(invoice_id: str):
-    """
-    L1 (accountant) or L2 (admin) approval.
-    Determines level from current workflow state + user role.
-    """
+def _get_invoice_and_wf(invoice_id: str):
+    """Helper: load invoice + workflow, return (invoice, wf) or (None, None)."""
     from ...models.approval_workflow import ApprovalWorkflow
     invoice = Invoice.get_by_id(invoice_id)
     if not invoice:
-        flash("Invoice not found.", "danger")
-        return redirect(url_for("invoices.list_invoices"))
-
+        return None, None
     wf = ApprovalWorkflow.get_by_invoice(invoice_id)
-    if not wf:
-        flash("No approval workflow exists for this invoice.", "warning")
-        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
-
-    comments = request.form.get("comments", "").strip()
-    level    = wf.current_level
-
-    # Permission check
-    if level == 1 and current_user.role not in ("accountant", "admin"):
-        flash("Only an accountant or admin can approve at Level 1.", "danger")
-        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
-    if level == 2 and not current_user.is_admin():
-        flash("Only an admin can approve at Level 2.", "danger")
-        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
-    if level is None:
-        flash("This workflow has already been completed.", "info")
-        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
-
-    completed = wf.approve_level(level, current_user.id, current_user.name, comments)
-
-    if completed:
-        # Both levels approved → mark invoice approved
-        invoice.update({"workflow_level": None})
-        try:
-            transition_status(invoice, "approved", current_user.id, current_user.name,
-                              "Approved via L1→L2 workflow")
-        except WorkflowError:
-            pass
-        flash("Invoice fully approved through L1 & L2 workflow.", "success")
-    else:
-        # Advance to next level
-        invoice.update({"workflow_level": 2})
-        flash("L1 approved — invoice is now awaiting L2 (admin) approval.", "info")
-
-    AuditLog.log(
-        invoice_id=invoice_id,
-        action="workflow_approve_l%d" % level,
-        actor_id=current_user.id,
-        actor_name=current_user.name,
-        details={"level": level, "comments": comments, "completed": completed},
-    )
-    return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+    return invoice, wf
 
 
-@invoices_bp.route("/<invoice_id>/workflow/reject", methods=["POST"])
+@invoices_bp.route("/<invoice_id>/approve/L1", methods=["POST"])
 @login_required
-def workflow_reject(invoice_id: str):
-    """
-    Reject at L1 or L2 — ends workflow, marks invoice rejected.
-    """
+def approve_l1(invoice_id: str):
+    """L1 approval. Only L1 role (or admin) can act."""
+    if not current_user.can_approve_level(1):
+        flash("Only an L1 approver can perform this action.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
     from ...models.approval_workflow import ApprovalWorkflow
+    from ...services.workflow_service import advance_workflow
+
     invoice = Invoice.get_by_id(invoice_id)
-    if not invoice:
-        flash("Invoice not found.", "danger")
-        return redirect(url_for("invoices.list_invoices"))
+    if not invoice or invoice.workflow_status != "pending_L1":
+        flash("Invoice is not in pending_L1 state.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
     wf = ApprovalWorkflow.get_by_invoice(invoice_id)
     if not wf:
-        flash("No approval workflow exists for this invoice.", "warning")
+        flash("No approval workflow found.", "warning")
         return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
     comments = request.form.get("comments", "").strip()
-    level    = wf.current_level
-
-    if level is None:
-        flash("This workflow has already been completed.", "info")
-        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
-
-    wf.reject_level(level, current_user.id, current_user.name, comments)
-    invoice.update({"workflow_level": None})
-    try:
-        transition_status(invoice, "rejected", current_user.id, current_user.name,
-                          comments or "Rejected via L%d workflow" % level)
-    except WorkflowError:
-        pass
-
-    AuditLog.log(
-        invoice_id=invoice_id,
-        action="workflow_reject_l%d" % level,
-        actor_id=current_user.id,
-        actor_name=current_user.name,
-        details={"level": level, "comments": comments},
-    )
-    flash("Invoice rejected at Level %d." % level, "warning")
-    return redirect(url_for("invoices.detail", invoice_id=invoice_id))
-
-
-# -- Export -------------------------------------------------------------------
-@invoices_bp.route("/export/<fmt>")
-@login_required
-def export(fmt: str):
-    filters  = build_filters(request.args)
-    invoices, _ = Invoice.list_all(filters=filters, page=1, per_page=10_000)
-
-    AuditLog.log(invoice_id="bulk", action="export",
+    wf.approve_level(1, current_user.id, current_user.name, comments)
+    invoice.push_approval_history("L1", current_user.id, current_user.name,
+                                  "approved", comments)
+    advance_workflow(invoice, "pending_L2", current_user.id, current_user.name,
+                     "L1 approved")
+    invoice.update({"workflow_level": 2})
+    flash("L1 approved. Invoice is now awaiting L2 approval.", "success")
+    AuditLog.log(invoice_id=invoice_id, action="approved_L1",
                  actor_id=current_user.id, actor_name=current_user.name,
-                 details={"format": fmt, "count": len(invoices)})
+                 details={"comments": comments})
+    return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    if fmt == "csv":
-        buf = export_csv(invoices)
-        return send_file(
-            buf, mimetype="text/csv",
-            as_attachment=True, download_name="invoices_%s.csv" % timestamp,
-        )
-    elif fmt == "excel":
-        buf = export_excel(invoices)
-        return send_file(
-            buf,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True, download_name="invoices_%s.xlsx" % timestamp,
-        )
-    else:
-        flash("Unsupported export format.", "danger")
+@invoices_bp.route("/<invoice_id>/approve/L2", methods=["POST"])
+@login_required
+def approve_l2(invoice_id: str):
+    """L2 approval. Only L2 role (or admin) can act."""
+    if not current_user.can_approve_level(2):
+        flash("Only an L2 approver can perform this action.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    from ...models.approval_workflow import ApprovalWorkflow
+    from ...services.workflow_service import advance_workflow
+
+    invoice = Invoice.get_by_id(invoice_id)
+    if not invoice or invoice.workflow_status != "pending_L2":
+        flash("Invoice is not in pending_L2 state.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    wf = ApprovalWorkflow.get_by_invoice(invoice_id)
+    if not wf:
+        flash("No approval workflow found.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    comments = request.form.get("comments", "").strip()
+    wf.approve_level(2, current_user.id, current_user.name, comments)
+    invoice.push_approval_history("L2", current_user.id, current_user.name,
+                                  "approved", comments)
+    advance_workflow(invoice, "pending_L3", current_user.id, current_user.name,
+                     "L2 approved")
+    invoice.update({"workflow_level": 3})
+    flash("L2 approved. Invoice is now awaiting L3 (final) approval.", "success")
+    AuditLog.log(invoice_id=invoice_id, action="approved_L2",
+                 actor_id=current_user.id, actor_name=current_user.name,
+                 details={"comments": comments})
+    return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+
+@invoices_bp.route("/<invoice_id>/approve/L3", methods=["POST"])
+@login_required
+def approve_l3(invoice_id: str):
+    """L3 final approval. Only L3 role (or admin) can act."""
+    if not current_user.can_approve_level(3):
+        flash("Only an L3 approver can perform this action.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    from ...models.approval_workflow import ApprovalWorkflow
+    from ...services.workflow_service import advance_workflow
+
+    invoice = Invoice.get_by_id(invoice_id)
+    if not invoice or invoice.workflow_status != "pending_L3":
+        flash("Invoice is not in pending_L3 state.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    wf = ApprovalWorkflow.get_by_invoice(invoice_id)
+    if not wf:
+        flash("No approval workflow found.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    comments = request.form.get("comments", "").strip()
+    wf.approve_level(3, current_user.id, current_user.name, comments)
+    invoice.push_approval_history("L3", current_user.id, current_user.name,
+                                  "approved", comments)
+    advance_workflow(invoice, "approved", current_user.id, current_user.name,
+                     "L3 final approval")
+    flash("Invoice fully approved by L3.", "success")
+    AuditLog.log(invoice_id=invoice_id, action="approved_L3",
+                 actor_id=current_user.id, actor_name=current_user.name,
+                 details={"comments": comments})
+    return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+
+@invoices_bp.route("/<invoice_id>/reject/<level>", methods=["POST"])
+@login_required
+def reject_level(invoice_id: str, level: str):
+    """Reject at a given approval level (L1/L2/L3) -> sends back to manual_review."""
+    level_map = {"L1": 1, "L2": 2, "L3": 3}
+    lvl = level_map.get(level.upper())
+    if not lvl or not current_user.can_approve_level(lvl):
+        flash(f"You don't have permission to reject at level {level}.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    from ...models.approval_workflow import ApprovalWorkflow
+    from ...services.workflow_service import advance_workflow
+
+    invoice = Invoice.get_by_id(invoice_id)
+    if not invoice:
+        flash("Invoice not found.", "danger")
         return redirect(url_for("invoices.list_invoices"))
+
+    reason = request.form.get("reason", "").strip()
+    expected_state = f"pending_{level.upper()}"
+    if invoice.workflow_status != expected_state:
+        flash(f"Invoice is not in {expected_state} state.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    wf = ApprovalWorkflow.get_by_invoice(invoice_id)
+    if wf:
+        wf.reject_level(lvl, current_user.id, current_user.name, reason)
+    invoice.push_approval_history(level.upper(), current_user.id, current_user.name,
+                                  "rejected", reason)
+    advance_workflow(invoice, "manual_review", current_user.id, current_user.name,
+                     reason or f"Rejected at {level}")
+    flash(f"Invoice rejected at {level} and sent for manual review.", "warning")
+    AuditLog.log(invoice_id=invoice_id, action=f"rejected_{level.upper()}",
+                 actor_id=current_user.id, actor_name=current_user.name,
+                 details={"reason": reason})
+    return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+
+@invoices_bp.route("/<invoice_id>/send-to-l1", methods=["POST"])
+@login_required
+def send_to_l1(invoice_id: str):
+    """Send a manual_review or missing_po invoice to pending_L1."""
+    from ...models.approval_workflow import ApprovalWorkflow
+    from ...services.workflow_service import advance_workflow
+
+    invoice = Invoice.get_by_id(invoice_id)
+    if not invoice:
+        flash("Invoice not found.", "danger")
+        return redirect(url_for("invoices.list_invoices"))
+
+    if invoice.workflow_status not in ("manual_review", "missing_po", "processed"):
+        flash("Invoice cannot be sent to L1 from its current state.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    wf = ApprovalWorkflow.get_by_invoice(invoice_id)
+    if not wf:
+        ApprovalWorkflow.initiate(invoice_id, current_user.id, current_user.name)
+
+    advance_workflow(invoice, "pending_L1", current_user.id, current_user.name,
+                     "Manually sent to L1 review")
+    invoice.update({"workflow_level": 1})
+    flash("Invoice sent to L1 for review.", "success")
+    AuditLog.log(invoice_id=invoice_id, action="sent_to_L1",
+                 actor_id=current_user.id, actor_name=current_user.name)
+    return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+
+
+
+@invoices_bp.route("/<invoice_id>/mark-ready", methods=["POST"])
+@login_required
+def mark_ready_for_payment(invoice_id: str):
+    """Mark an approved invoice as ready for payment. Admin only."""
+    if not current_user.is_admin():
+        flash("Only admins can mark invoices as ready for payment.", "danger")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    from ...services.workflow_service import advance_workflow
+
+    invoice = Invoice.get_by_id(invoice_id)
+    if not invoice or invoice.workflow_status != "approved":
+        flash("Invoice must be in approved state first.", "warning")
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+    advance_workflow(invoice, "ready_for_payment", current_user.id, current_user.name,
+                     "Marked ready for payment")
+    flash("Invoice is now marked as Ready for Payment.", "success")
+    AuditLog.log(invoice_id=invoice_id, action="marked_ready_for_payment",
+                 actor_id=current_user.id, actor_name=current_user.name)
+    return redirect(url_for("invoices.detail", invoice_id=invoice_id))

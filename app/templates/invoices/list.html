@@ -74,8 +74,25 @@
     {% endif %}
     {% if filters.get('po_match_status') %}
       <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEE2E2;color:#BE123C;">
-        No PO Match
+        PO: {{ filters.get('po_match_status') }}
       </span>
+    {% endif %}
+    {% if filters.get('workflow_status') %}
+      {% set wf_labels = {
+        'pending_L1': ('Pending L1','#FEF3C7','#92400E'),
+        'pending_L2': ('Pending L2','#DBEAFE','#1E40AF'),
+        'pending_L3': ('Pending L3','#EDE9FE','#5B21B6'),
+        'manual_review': ('Manual Review','#FEF9C3','#713F12'),
+        'missing_po': ('Missing PO','#FEE2E2','#991B1B'),
+        'approved': ('Approved','#D1FAE5','#065F46'),
+        'ready_for_payment': ('Ready to Pay','#CFFAFE','#0E7490'),
+      } %}
+      {% set wfl = wf_labels.get(filters.get('workflow_status')) %}
+      {% if wfl %}
+      <span class="badge ms-1 px-2" style="font-size:.72rem;background:{{ wfl[1] }};color:{{ wfl[2] }};">
+        {{ wfl[0] }}
+      </span>
+      {% endif %}
     {% endif %}
     {% if filters.get('overdue') == '1' %}
       <span class="badge ms-1 px-2" style="font-size:.72rem;background:#FEE2E2;color:#991B1B;">
@@ -159,6 +176,7 @@
       {% if filters.get('overdue') == '1' %}<input type="hidden" name="overdue" value="1">{% endif %}
       {% if filters.get('exclude_risk_flag') %}<input type="hidden" name="exclude_risk_flag" value="{{ filters.get('exclude_risk_flag') }}">{% endif %}
       {% if filters.get('po_match_status') %}<input type="hidden" name="po_match_status" value="{{ filters.get('po_match_status') }}">{% endif %}
+      {% if filters.get('workflow_status') %}<input type="hidden" name="workflow_status" value="{{ filters.get('workflow_status') }}">{% endif %}
     </form>
   </div>
 </div>
@@ -185,7 +203,7 @@
       <tbody>
         {% for inv in invoices %}
         {% set d = inv.to_dict(full=False) %}
-        {% set wf_level = d.get('workflow_level') %}
+        {% set wf_st = d.get('workflow_status') or inv.workflow_status %}
         <tr onclick="rowClick(event,'{{ inv.id }}')" style="cursor:pointer;">
 
           <td onclick="event.stopPropagation()">
@@ -235,33 +253,43 @@
             {% endif %}
           </td>
 
-          {# Status — L1 Approval / L2 Approval / Approved / Rejected (no "Pending" word) #}
+          {# Status — workflow_status badge, clickable to open stepper #}
           <td onclick="event.stopPropagation()">
-            {% if inv.status == 'pending' %}
-              {% if wf_level == 2 %}
-                <button class="wf-badge wf-l2"
-                        onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
-                        title="Click to view approval flow">
-                  <i class="bi bi-hourglass-split"></i> L2 Approval
-                </button>
-              {% else %}
-                <button class="wf-badge wf-l1"
-                        onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
-                        title="Click to view approval flow">
-                  <i class="bi bi-hourglass-split"></i> L1 Approval
-                </button>
-              {% endif %}
-            {% elif inv.status == 'approved' %}
-              <button class="wf-badge wf-approved"
-                      onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
-                      title="Click to view approval flow">
+            {% if wf_st == 'pending_L1' %}
+              <button class="wf-badge wf-l1" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="Awaiting L1 approval">
+                <i class="bi bi-hourglass-split"></i> L1 Approval
+              </button>
+            {% elif wf_st == 'pending_L2' %}
+              <button class="wf-badge wf-l2" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="Awaiting L2 approval">
+                <i class="bi bi-hourglass-split"></i> L2 Approval
+              </button>
+            {% elif wf_st == 'pending_L3' %}
+              <button class="wf-badge" style="background:#EDE9FE;color:#5B21B6;" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="Awaiting L3 approval">
+                <i class="bi bi-hourglass-split"></i> L3 Approval
+              </button>
+            {% elif wf_st == 'approved' %}
+              <button class="wf-badge wf-approved" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="Fully approved">
                 <i class="bi bi-check-circle-fill"></i> Approved
               </button>
+            {% elif wf_st == 'ready_for_payment' %}
+              <button class="wf-badge" style="background:#CFFAFE;color:#0E7490;" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="Ready for payment">
+                <i class="bi bi-credit-card"></i> Ready to Pay
+              </button>
+            {% elif wf_st == 'manual_review' %}
+              <button class="wf-badge wf-rejected" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="Needs manual review">
+                <i class="bi bi-exclamation-triangle"></i> Manual Review
+              </button>
+            {% elif wf_st == 'missing_po' %}
+              <button class="wf-badge wf-rejected" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="No PO match">
+                <i class="bi bi-file-earmark-x"></i> Missing PO
+              </button>
+            {% elif wf_st in ('uploaded','processed') %}
+              <button class="wf-badge wf-plain" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="Processing">
+                <i class="bi bi-arrow-clockwise"></i> {{ wf_st | title }}
+              </button>
             {% else %}
-              <button class="wf-badge wf-rejected"
-                      onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')"
-                      title="Click to view approval flow">
-                <i class="bi bi-x-circle-fill"></i> Rejected
+              <button class="wf-badge wf-plain" onclick="openWfModal('{{ inv.id }}','{{ inv.invoice_number|e }}')" title="{{ inv.status | title }}">
+                <i class="bi bi-circle"></i> {{ inv.status | title }}
               </button>
             {% endif %}
           </td>
@@ -276,17 +304,30 @@
                  class="btn btn-sm btn-outline-primary py-0 px-2" title="View">
                 <i class="bi bi-eye"></i>
               </a>
-              {% if wf_level == 1 and current_user.role in ('accountant','admin') %}
+              {# Quick approve button — only shown when user has matching role #}
+              {% if wf_st == 'pending_L1' and current_user.can_approve_level(1) %}
               <button class="btn btn-sm btn-outline-success py-0 px-2" title="Approve L1"
-                      onclick="quickApprove('{{ inv.id }}',1)">
+                      onclick="quickApprove('{{ inv.id }}','L1')">
                 <i class="bi bi-check-lg"></i>
               </button>
-              {% endif %}
-              {% if wf_level == 2 and current_user.is_admin() %}
-              <button class="btn btn-sm btn-success py-0 px-2" title="Final Approve L2"
-                      onclick="quickApprove('{{ inv.id }}',2)">
+              {% elif wf_st == 'pending_L2' and current_user.can_approve_level(2) %}
+              <button class="btn btn-sm btn-outline-success py-0 px-2" title="Approve L2"
+                      onclick="quickApprove('{{ inv.id }}','L2')">
+                <i class="bi bi-check-lg"></i>
+              </button>
+              {% elif wf_st == 'pending_L3' and current_user.can_approve_level(3) %}
+              <button class="btn btn-sm btn-success py-0 px-2" title="Final Approve L3"
+                      onclick="quickApprove('{{ inv.id }}','L3')">
                 <i class="bi bi-check2-all"></i>
               </button>
+              {% endif %}
+              {# Send to L1 from stuck states #}
+              {% if wf_st in ('manual_review','missing_po') and (current_user.is_admin() or current_user.role in ('L1','L2','L3')) %}
+              <form method="POST" action="{{ url_for('invoices.send_to_l1', invoice_id=inv.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2" title="Send to L1">
+                  <i class="bi bi-arrow-right-circle"></i>
+                </button>
+              </form>
               {% endif %}
             </div>
           </td>
@@ -370,11 +411,11 @@ function toggleAll(cb) {
 
 /* ── Quick approve from list ──────────────────────────── */
 function quickApprove(invoiceId, level) {
-  var label = level === 1 ? 'L1 (first review)' : 'L2 (final)';
-  if (!confirm('Approve as ' + label + '?')) return;
+  var labels = {L1:'L1 (first review)', L2:'L2 (second review)', L3:'L3 (final approval)'};
+  if (!confirm('Approve invoice at ' + (labels[level] || level) + '?')) return;
   var f = document.createElement('form');
   f.method = 'POST';
-  f.action = '/invoices/' + invoiceId + '/workflow/approve';
+  f.action = '/invoices/' + invoiceId + '/approve/' + level;
   document.getElementById('qForms').appendChild(f);
   f.submit();
 }
@@ -395,59 +436,62 @@ function openWfModal(invoiceId, invoiceNum) {
       '<div class="alert alert-warning mb-0">Could not load workflow data.</div>'; });
 }
 
-/* ── Build stepper HTML ───────────────────────────────── */
+/* ── Build stepper HTML (3-level: L1 → L2 → L3) ─────── */
 function buildStepper(wf) {
-  /* Determine each step state --------------------------------
-     step 0: Invoice Processed  — always done
-     step 1: L1 Approval
-     step 2: L2 Approval
-     step 3: Payment
-  */
-  var s1 = 'wait', s2 = 'wait', s3 = 'wait';
-  var m1 = 'Awaiting L1 review', m2 = 'Awaiting L2 review', m3 = 'Awaiting full approval';
-  var c1 = 'c-wait', c2 = 'c-wait', c3 = 'c-wait';
-  var conn0 = 'done', conn1 = '', conn2 = '';
+  var s1='wait', s2='wait', s3='wait', s4='wait';
+  var m1='Awaiting L1 review', m2='Awaiting L2 review',
+      m3='Awaiting L3 final approval', m4='Awaiting approval to proceed';
+  var c1='c-wait', c2='c-wait', c3='c-wait', c4='c-wait';
+  var conn0='done', conn1='', conn2='', conn3='';
 
   if (wf) {
-    var l1 = wf.l1_status, l2 = wf.l2_status;
+    var l1=wf.l1_status, l2=wf.l2_status, l3=wf.l3_status;
 
-    if (l1 === 'approved') {
-      s1 = 'done'; c1 = 'c-done'; conn1 = 'done';
-      m1 = 'Approved by ' + (wf.l1_actor_name || '—') + (wf.l1_acted_at ? ' · ' + fmtD(wf.l1_acted_at) : '');
-    } else if (l1 === 'rejected') {
-      s1 = 'reject'; c1 = 'c-reject';
-      m1 = 'Rejected by ' + (wf.l1_actor_name || '—') + (wf.l1_acted_at ? ' · ' + fmtD(wf.l1_acted_at) : '');
-    } else if (l1 === 'pending') {
-      s1 = 'active'; c1 = 'c-active';
-      m1 = 'Waiting for L1 review (Accountant)';
+    if (l1==='approved') {
+      s1='done'; c1='c-done'; conn1='done';
+      m1='Approved by '+(wf.l1_actor_name||'—')+(wf.l1_acted_at?' · '+fmtD(wf.l1_acted_at):'');
+    } else if (l1==='rejected') {
+      s1='reject'; c1='c-reject';
+      m1='Rejected by '+(wf.l1_actor_name||'—')+(wf.l1_acted_at?' · '+fmtD(wf.l1_acted_at):'');
+    } else if (l1==='pending') {
+      s1='active'; c1='c-active'; m1='Waiting for L1 review';
     }
 
-    if (l2 === 'approved') {
-      s2 = 'done'; c2 = 'c-done'; conn2 = 'done';
-      m2 = 'Approved by ' + (wf.l2_actor_name || '—') + (wf.l2_acted_at ? ' · ' + fmtD(wf.l2_acted_at) : '');
-    } else if (l2 === 'rejected') {
-      s2 = 'reject'; c2 = 'c-reject';
-      m2 = 'Rejected by ' + (wf.l2_actor_name || '—') + (wf.l2_acted_at ? ' · ' + fmtD(wf.l2_acted_at) : '');
-    } else if (l2 === 'pending') {
-      s2 = 'active'; c2 = 'c-active';
-      m2 = 'Waiting for L2 review (Admin / Finance Head)';
+    if (l2==='approved') {
+      s2='done'; c2='c-done'; conn2='done';
+      m2='Approved by '+(wf.l2_actor_name||'—')+(wf.l2_acted_at?' · '+fmtD(wf.l2_acted_at):'');
+    } else if (l2==='rejected') {
+      s2='reject'; c2='c-reject';
+      m2='Rejected by '+(wf.l2_actor_name||'—')+(wf.l2_acted_at?' · '+fmtD(wf.l2_acted_at):'');
+    } else if (l2==='pending') {
+      s2='active'; c2='c-active'; m2='Waiting for L2 review';
     }
 
-    if (wf.final_status === 'approved') {
-      s3 = 'done'; c3 = 'c-done'; m3 = 'Ready for payment processing';
-    } else if (wf.final_status === 'rejected') {
-      s3 = 'reject'; c3 = 'c-reject'; m3 = 'Invoice rejected — payment blocked';
+    if (l3==='approved') {
+      s3='done'; c3='c-done'; conn3='done';
+      m3='Approved by '+(wf.l3_actor_name||'—')+(wf.l3_acted_at?' · '+fmtD(wf.l3_acted_at):'');
+    } else if (l3==='rejected') {
+      s3='reject'; c3='c-reject';
+      m3='Rejected by '+(wf.l3_actor_name||'—')+(wf.l3_acted_at?' · '+fmtD(wf.l3_acted_at):'');
+    } else if (l3==='pending') {
+      s3='active'; c3='c-active'; m3='Waiting for L3 final approval';
+    }
+
+    if (wf.final_status==='approved') {
+      s4='done'; c4='c-done'; m4='Invoice fully approved — ready for payment';
+    } else if (wf.final_status==='rejected') {
+      s4='reject'; c4='c-reject'; m4='Invoice rejected — payment blocked';
     }
   } else {
-    m1 = 'No workflow initiated yet';
+    m1='No workflow initiated yet';
   }
 
   return [
-    mkStep('done',  conn0, 'bi-file-earmark-check-fill', 'Invoice Processed',
-           'Uploaded &amp; AI-extracted', 'c-done'),
-    mkStep(s1, conn1, stepIco(s1), 'L1 Approval', esc(m1), c1),
-    mkStep(s2, conn2, stepIco(s2), 'L2 Approval', esc(m2), c2),
-    mkStep(s3, '',    stepIco(s3), 'Payment',      esc(m3), c3),
+    mkStep('done', conn0, '<i class="bi bi-file-earmark-check-fill"></i>', 'Invoice Processed', 'Uploaded &amp; AI-extracted', 'c-done'),
+    mkStep(s1, conn1, stepIco(s1), 'L1 Approval',       esc(m1), c1),
+    mkStep(s2, conn2, stepIco(s2), 'L2 Approval',       esc(m2), c2),
+    mkStep(s3, conn3, stepIco(s3), 'L3 Final Approval', esc(m3), c3),
+    mkStep(s4, '',    stepIco(s4), 'Payment Ready',      esc(m4), c4),
   ].join('');
 }
 
@@ -461,9 +505,9 @@ function mkStep(state, connState, ico, title, sub, subCls) {
 }
 
 function stepIco(state) {
-  if (state === 'done')   return '<i class="bi bi-check-lg"></i>';
-  if (state === 'reject') return '<i class="bi bi-x-lg"></i>';
-  if (state === 'active') return '<div class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;"></div>';
+  if (state==='done')   return '<i class="bi bi-check-lg"></i>';
+  if (state==='reject') return '<i class="bi bi-x-lg"></i>';
+  if (state==='active') return '<div class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;"></div>';
   return '<i class="bi bi-dash"></i>';
 }
 

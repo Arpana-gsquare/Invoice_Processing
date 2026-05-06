@@ -2,13 +2,16 @@
 Invoice Model - MongoDB schema with nested line items, status history, and soft delete.
 
 New fields vs original:
-  status_history  - embedded array of every status change
-  is_deleted      - soft delete flag
-  deleted_at      - when moved to recycle bin
-  deleted_by      - user_id who deleted
-  deleted_by_name - display name
-  retention_days  - how long to keep in bin
-  permanent_delete_at - TTL index fires on this field
+  status_history       - embedded array of every status change
+  is_deleted           - soft delete flag
+  deleted_at           - when moved to recycle bin
+  deleted_by           - user_id who deleted
+  deleted_by_name      - display name
+  retention_days       - how long to keep in bin
+  permanent_delete_at  - TTL index fires on this field
+  workflow_status      - new 9-state workflow (added alongside legacy `status`)
+  approval_history     - embedded approval records (level, user, timestamp, action)
+  po_match_status      - "full" | "partial" | "none"  (new values)
 """
 from __future__ import annotations
 from datetime import datetime, timezone, timedelta
@@ -23,6 +26,32 @@ CATEGORIES = (
 )
 STATUSES = ("pending", "approved", "rejected")
 RISK_FLAGS = ("LOW RISK", "MODERATE", "HIGH RISK", "DUPLICATE")
+
+# ── 9-state workflow ────────────────────────────────────────────────────────
+WORKFLOW_STATES = (
+    "uploaded",          # file received, not yet AI-processed
+    "processed",         # AI extraction done, PO matching pending/done
+    "missing_po",        # no PO found
+    "manual_review",     # partial PO match — needs human review
+    "pending_L1",        # awaiting first-level approval
+    "pending_L2",        # L1 approved, awaiting second-level
+    "pending_L3",        # L2 approved, awaiting final approval
+    "approved",          # L3 approved
+    "ready_for_payment", # admin confirmed payment
+)
+
+# Map new workflow_status → legacy status (keeps AI / export code working)
+WF_TO_STATUS: dict[str, str] = {
+    "uploaded":          "pending",
+    "processed":         "pending",
+    "missing_po":        "pending",
+    "manual_review":     "pending",
+    "pending_L1":        "pending",
+    "pending_L2":        "pending",
+    "pending_L3":        "pending",
+    "approved":          "approved",
+    "ready_for_payment": "approved",
+}
 
 
 class Invoice:
@@ -52,6 +81,24 @@ class Invoice:
     @property
     def status(self) -> str:
         return self._doc.get("status", "pending")
+
+    @property
+    def workflow_status(self) -> str:
+        """New 9-state workflow field. Falls back to legacy mapping if absent."""
+        ws = self._doc.get("workflow_status")
+        if ws:
+            return ws
+        # Derive a sensible default from the legacy status
+        legacy = self.status
+        if legacy == "approved":
+            return "approved"
+        if legacy == "rejected":
+            return "manual_review"
+        return "processed"
+
+    @property
+    def approval_history(self) -> list:
+        return self._doc.get("approval_history", [])
 
     @property
     def is_deleted(self) -> bool:
@@ -85,6 +132,8 @@ class Invoice:
         db = get_db()
         data.setdefault("upload_timestamp", datetime.now(timezone.utc))
         data.setdefault("status", "pending")
+        data.setdefault("workflow_status", "uploaded")
+        data.setdefault("approval_history", [])
         data.setdefault("status_history", [])
         data.setdefault("risk_flag", "LOW RISK")
         data.setdefault("risk_score", 0)
@@ -200,6 +249,24 @@ class Invoice:
         )
         self._doc.setdefault("status_history", []).append(entry)
 
+    def push_approval_history(self, level: str, actor_id: str,
+                              actor_name: str, action: str,
+                              comments: str = ""):
+        """Append an approval event to the embedded approval_history array."""
+        entry = {
+            "level":      level,          # "L1" | "L2" | "L3"
+            "user_id":    actor_id,
+            "user_name":  actor_name,
+            "action":     action,         # "approved" | "rejected" | "sent_to_L1"
+            "comments":   comments,
+            "timestamp":  datetime.now(timezone.utc),
+        }
+        get_db().invoices.update_one(
+            {"_id": self._doc["_id"]},
+            {"$push": {"approval_history": entry}},
+        )
+        self._doc.setdefault("approval_history", []).append(entry)
+
     # ── Soft Delete / Restore / Hard Delete ────────────────────────────────
     def soft_delete(self, deleted_by: str, deleted_by_name: str, retention_days: int = 30):
         now = datetime.now(timezone.utc)
@@ -244,9 +311,15 @@ class Invoice:
         for entry in doc.get("status_history", []):
             if entry.get("timestamp") and hasattr(entry["timestamp"], "isoformat"):
                 entry["timestamp"] = entry["timestamp"].isoformat()
+        # Serialise timestamps inside approval_history
+        for entry in doc.get("approval_history", []):
+            if entry.get("timestamp") and hasattr(entry["timestamp"], "isoformat"):
+                entry["timestamp"] = entry["timestamp"].isoformat()
         if not full:
             doc.pop("raw_text", None)
             doc.pop("line_items", None)
         doc["days_since_invoice"] = self.days_since_invoice
         doc["is_overdue"] = self.is_overdue
+        # Ensure workflow_status is always present in the serialised form
+        doc["workflow_status"] = self.workflow_status
         return doc

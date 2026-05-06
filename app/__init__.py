@@ -30,6 +30,7 @@ def create_app(config_class=None):
     from .blueprints.recycle.routes import recycle_bp
     from .blueprints.po.routes import po_bp
     from .blueprints.proposals.routes import proposals_bp
+    from .blueprints.admin.routes import admin_bp
 
     app.register_blueprint(auth_bp,       url_prefix="/auth")
     app.register_blueprint(dashboard_bp,  url_prefix="/")
@@ -38,9 +39,11 @@ def create_app(config_class=None):
     app.register_blueprint(recycle_bp,    url_prefix="/recycle-bin")
     app.register_blueprint(po_bp,         url_prefix="/purchase-orders")
     app.register_blueprint(proposals_bp,  url_prefix="/proposals")
+    app.register_blueprint(admin_bp,      url_prefix="/admin")
 
     with app.app_context():
         _seed_admin(app)
+        _migrate_roles()
 
     app.jinja_env.globals["APP_NAME"] = app.config["APP_NAME"]
     return app
@@ -55,3 +58,12 @@ def _seed_admin(app):
             name="System Admin",
             role="admin",
         )
+
+
+def _migrate_roles():
+    """Idempotently upgrade legacy role strings to new L1/L2/L3 scheme."""
+    from .models.user import migrate_legacy_roles
+    try:
+        migrate_legacy_roles()
+    except Exception:
+        pass  # DB might not be ready in test environments

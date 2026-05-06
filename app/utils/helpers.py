@@ -90,8 +90,12 @@ def build_filters(args: dict) -> dict:
         query["due_date"] = {"$exists": True, "$ne": None, "$lt": now}
         query["status"]   = "pending"
 
-    # PO match status filter (e.g. po_match_status=NO_PO_FOUND)
+    # PO match status filter (e.g. po_match_status=NO_PO_FOUND or po_match_status=none)
     if args.get("po_match_status"):
         query["po_match_status"] = args["po_match_status"]
+
+    # New 9-state workflow filter
+    if args.get("workflow_status"):
+        query["workflow_status"] = args["workflow_status"]
 
     return query

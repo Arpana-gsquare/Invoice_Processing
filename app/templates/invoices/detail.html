@@ -21,42 +21,53 @@
     </h5>
     <p class="text-muted small mb-0">Uploaded {{ d.get('upload_timestamp','')[:16] | replace('T',' ') }} · {{ invoice.vendor_name or 'Unknown vendor' }}</p>
   </div>
+  {% set wf_st = d.get('workflow_status') or invoice.workflow_status %}
   <div class="d-flex gap-2 flex-wrap">
-    {# ── Dynamic workflow buttons based on current status ── #}
-    {% if current_user.can_approve() %}
-      {% if invoice.status == 'pending' %}
-        {# pending → approve #}
-        <form method="POST" action="{{ url_for('invoices.transition', invoice_id=invoice.id) }}">
-          <input type="hidden" name="new_status" value="approved">
-          <button type="submit" class="btn btn-success btn-sm">
-            <i class="bi bi-check-lg me-1"></i>Approve
-          </button>
-        </form>
-        {# pending → reject #}
-        <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">
-          <i class="bi bi-x-lg me-1"></i>Reject
+    {# ── Dynamic workflow action buttons based on workflow_status + role ── #}
+
+    {% if wf_st == 'pending_L1' and current_user.can_approve_level(1) %}
+      <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#approveModal"
+              onclick="setApproveLevel('L1','Approve at L1')">
+        <i class="bi bi-check-lg me-1"></i>Approve L1
+      </button>
+      <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal"
+              onclick="setRejectLevel('L1')">
+        <i class="bi bi-x-lg me-1"></i>Reject L1
+      </button>
+
+    {% elif wf_st == 'pending_L2' and current_user.can_approve_level(2) %}
+      <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#approveModal"
+              onclick="setApproveLevel('L2','Approve at L2')">
+        <i class="bi bi-check-lg me-1"></i>Approve L2
+      </button>
+      <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal"
+              onclick="setRejectLevel('L2')">
+        <i class="bi bi-x-lg me-1"></i>Reject L2
+      </button>
+
+    {% elif wf_st == 'pending_L3' and current_user.can_approve_level(3) %}
+      <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#approveModal"
+              onclick="setApproveLevel('L3','Final Approve (L3)')">
+        <i class="bi bi-check2-all me-1"></i>Approve L3
+      </button>
+      <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal"
+              onclick="setRejectLevel('L3')">
+        <i class="bi bi-x-lg me-1"></i>Reject L3
+      </button>
+
+    {% elif wf_st in ('manual_review','missing_po') %}
+      <form method="POST" action="{{ url_for('invoices.send_to_l1', invoice_id=invoice.id) }}">
+        <button type="submit" class="btn btn-warning btn-sm">
+          <i class="bi bi-arrow-right-circle me-1"></i>Send to L1
         </button>
-      {% elif invoice.status == 'approved' %}
-        {# approved → pending (undo) #}
-        <form method="POST" action="{{ url_for('invoices.transition', invoice_id=invoice.id) }}">
-          <input type="hidden" name="new_status" value="pending">
-          <input type="hidden" name="reason" value="Approval undone">
-          <button type="submit" class="btn btn-outline-warning btn-sm"
-                  onclick="return confirm('Undo approval and return to Pending?')">
-            <i class="bi bi-arrow-counterclockwise me-1"></i>Undo Approval
-          </button>
-        </form>
-      {% elif invoice.status == 'rejected' %}
-        {# rejected → pending (reopen) #}
-        <form method="POST" action="{{ url_for('invoices.transition', invoice_id=invoice.id) }}">
-          <input type="hidden" name="new_status" value="pending">
-          <input type="hidden" name="reason" value="Rejection undone – reopened">
-          <button type="submit" class="btn btn-outline-primary btn-sm"
-                  onclick="return confirm('Reopen this invoice and set it back to Pending?')">
-            <i class="bi bi-arrow-repeat me-1"></i>Reopen
-          </button>
-        </form>
-      {% endif %}
+      </form>
+
+    {% elif wf_st == 'approved' and current_user.is_admin() %}
+      <form method="POST" action="{{ url_for('invoices.mark_ready_for_payment', invoice_id=invoice.id) }}">
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="bi bi-credit-card me-1"></i>Mark Ready for Payment
+        </button>
+      </form>
     {% endif %}
 
     <form method="POST" action="{{ url_for('invoices.reanalyse', invoice_id=invoice.id) }}">
@@ -428,23 +439,147 @@
       </div>
     </div>
 
-    <!-- Workflow Status -->
-    {% if d.get('approved_by') or d.get('rejected_by') %}
+    <!-- 3-Level Approval Stepper -->
     <div class="card mb-3">
       <div class="card-body">
-        <h6 class="fw-semibold text-muted mb-2"><i class="bi bi-diagram-3 me-1"></i>Workflow</h6>
-        {% if d.get('approved_at') %}
-        <div class="small"><span class="text-success fw-semibold">✓ Approved</span> on {{ d.approved_at[:10] }}</div>
+        <h6 class="fw-semibold text-muted mb-3">
+          <i class="bi bi-diagram-3 me-1"></i>Approval Workflow
+          <span class="ms-2 badge"
+            style="font-size:.7rem;
+            {% if wf_st == 'approved' %}background:#D1FAE5;color:#065F46;
+            {% elif wf_st == 'ready_for_payment' %}background:#CFFAFE;color:#0E7490;
+            {% elif wf_st == 'manual_review' or wf_st == 'missing_po' %}background:#FEE2E2;color:#991B1B;
+            {% elif wf_st and wf_st.startswith('pending_') %}background:#FEF3C7;color:#92400E;
+            {% else %}background:#F1F5F9;color:#64748B;{% endif %}">
+            {{ wf_st | replace('_',' ') | title if wf_st else '—' }}
+          </span>
+        </h6>
+
+        {# Step 0: processed #}
+        <div class="wf-step s-done">
+          <div class="step-dot done"><i class="bi bi-file-earmark-check-fill"></i></div>
+          <div class="step-body">
+            <div class="step-title">Invoice Processed</div>
+            <div class="step-sub c-done">Uploaded &amp; AI-extracted</div>
+          </div>
+        </div>
+
+        {# ── L1 step ── #}
+        {% set ah = d.get('approval_history',[]) %}
+        {% set l1_entry = ah | selectattr('level','equalto','L1') | list | last %}
+        {% if l1_entry %}
+          {% set l1_done = l1_entry.action == 'approved' %}
+          <div class="wf-step {% if l1_done %}s-done{% endif %}">
+            <div class="step-dot {% if l1_done %}done{% elif wf_st == 'pending_L1' %}active{% elif l1_entry.action == 'rejected' %}reject{% else %}wait{% endif %}">
+              <i class="bi {% if l1_done %}bi-check-lg{% elif l1_entry.action == 'rejected' %}bi-x-lg{% else %}bi-dash{% endif %}"></i>
+            </div>
+            <div class="step-body">
+              <div class="step-title">L1 Approval</div>
+              <div class="step-sub {% if l1_done %}c-done{% elif l1_entry.action == 'rejected' %}c-reject{% else %}c-wait{% endif %}">
+                {{ l1_entry.action | title }} by {{ l1_entry.user_name }}
+                {% if l1_entry.timestamp %} · {{ l1_entry.timestamp[:10] }}{% endif %}
+                {% if l1_entry.comments %}<br><em class="text-muted">"{{ l1_entry.comments }}"</em>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="wf-step">
+            <div class="step-dot {% if wf_st == 'pending_L1' %}active{% else %}wait{% endif %}">
+              {% if wf_st == 'pending_L1' %}<div class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;"></div>
+              {% else %}<i class="bi bi-dash"></i>{% endif %}
+            </div>
+            <div class="step-body">
+              <div class="step-title">L1 Approval</div>
+              <div class="step-sub {% if wf_st == 'pending_L1' %}c-active{% else %}c-wait{% endif %}">
+                {% if wf_st == 'pending_L1' %}Waiting for L1 reviewer{% else %}Not yet reached{% endif %}
+              </div>
+            </div>
+          </div>
         {% endif %}
-        {% if d.get('rejected_at') %}
-        <div class="small"><span class="text-danger fw-semibold">✕ Rejected</span> on {{ d.rejected_at[:10] }}</div>
-        {% if d.get('rejection_reason') %}
-        <div class="small text-muted mt-1">Reason: {{ d.rejection_reason }}</div>
+
+        {# ── L2 step ── #}
+        {% set l2_entry = ah | selectattr('level','equalto','L2') | list | last %}
+        {% if l2_entry %}
+          {% set l2_done = l2_entry.action == 'approved' %}
+          <div class="wf-step {% if l2_done %}s-done{% endif %}">
+            <div class="step-dot {% if l2_done %}done{% elif wf_st == 'pending_L2' %}active{% elif l2_entry.action == 'rejected' %}reject{% else %}wait{% endif %}">
+              <i class="bi {% if l2_done %}bi-check-lg{% elif l2_entry.action == 'rejected' %}bi-x-lg{% else %}bi-dash{% endif %}"></i>
+            </div>
+            <div class="step-body">
+              <div class="step-title">L2 Approval</div>
+              <div class="step-sub {% if l2_done %}c-done{% elif l2_entry.action == 'rejected' %}c-reject{% else %}c-wait{% endif %}">
+                {{ l2_entry.action | title }} by {{ l2_entry.user_name }}
+                {% if l2_entry.timestamp %} · {{ l2_entry.timestamp[:10] }}{% endif %}
+                {% if l2_entry.comments %}<br><em class="text-muted">"{{ l2_entry.comments }}"</em>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="wf-step">
+            <div class="step-dot {% if wf_st == 'pending_L2' %}active{% else %}wait{% endif %}">
+              {% if wf_st == 'pending_L2' %}<div class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;"></div>
+              {% else %}<i class="bi bi-dash"></i>{% endif %}
+            </div>
+            <div class="step-body">
+              <div class="step-title">L2 Approval</div>
+              <div class="step-sub {% if wf_st == 'pending_L2' %}c-active{% else %}c-wait{% endif %}">
+                {% if wf_st == 'pending_L2' %}Waiting for L2 reviewer{% else %}Not yet reached{% endif %}
+              </div>
+            </div>
+          </div>
         {% endif %}
+
+        {# ── L3 step ── #}
+        {% set l3_entry = ah | selectattr('level','equalto','L3') | list | last %}
+        {% if l3_entry %}
+          {% set l3_done = l3_entry.action == 'approved' %}
+          <div class="wf-step {% if l3_done %}s-done{% endif %}">
+            <div class="step-dot {% if l3_done %}done{% elif wf_st == 'pending_L3' %}active{% elif l3_entry.action == 'rejected' %}reject{% else %}wait{% endif %}">
+              <i class="bi {% if l3_done %}bi-check-lg{% elif l3_entry.action == 'rejected' %}bi-x-lg{% else %}bi-dash{% endif %}"></i>
+            </div>
+            <div class="step-body">
+              <div class="step-title">L3 Final Approval</div>
+              <div class="step-sub {% if l3_done %}c-done{% elif l3_entry.action == 'rejected' %}c-reject{% else %}c-wait{% endif %}">
+                {{ l3_entry.action | title }} by {{ l3_entry.user_name }}
+                {% if l3_entry.timestamp %} · {{ l3_entry.timestamp[:10] }}{% endif %}
+                {% if l3_entry.comments %}<br><em class="text-muted">"{{ l3_entry.comments }}"</em>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="wf-step">
+            <div class="step-dot {% if wf_st == 'pending_L3' %}active{% else %}wait{% endif %}">
+              {% if wf_st == 'pending_L3' %}<div class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;"></div>
+              {% else %}<i class="bi bi-dash"></i>{% endif %}
+            </div>
+            <div class="step-body">
+              <div class="step-title">L3 Final Approval</div>
+              <div class="step-sub {% if wf_st == 'pending_L3' %}c-active{% else %}c-wait{% endif %}">
+                {% if wf_st == 'pending_L3' %}Waiting for L3 final approver{% else %}Not yet reached{% endif %}
+              </div>
+            </div>
+          </div>
         {% endif %}
+
+        {# ── Payment step ── #}
+        <div class="wf-step">
+          <div class="step-dot {% if wf_st == 'ready_for_payment' %}done{% elif wf_st == 'approved' %}active{% else %}wait{% endif %}">
+            {% if wf_st == 'ready_for_payment' %}<i class="bi bi-credit-card"></i>
+            {% elif wf_st == 'approved' %}<div class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;"></div>
+            {% else %}<i class="bi bi-dash"></i>{% endif %}
+          </div>
+          <div class="step-body">
+            <div class="step-title">Payment Ready</div>
+            <div class="step-sub {% if wf_st == 'ready_for_payment' %}c-done{% elif wf_st == 'approved' %}c-active{% else %}c-wait{% endif %}">
+              {% if wf_st == 'ready_for_payment' %}Marked ready for payment
+              {% elif wf_st == 'approved' %}Approved — awaiting payment release
+              {% else %}Pending full approval{% endif %}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
-    {% endif %}
 
     <!-- Status History Timeline -->
     {% set history = invoice_dict.get('status_history', []) %}
@@ -519,24 +654,50 @@
 </div>
 
 <!-- ── Modals ──────────────────────────────────────────────────── -->
-<!-- Reject Modal -->
-<div class="modal fade" id="rejectModal" tabindex="-1">
-  <div class="modal-dialog">
-    <form method="POST" action="{{ url_for('invoices.reject', invoice_id=invoice.id) }}" class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title text-danger"><i class="bi bi-x-circle me-2"></i>Reject Invoice</h5>
+
+<!-- Approve Modal (with optional comments) -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+    <form id="approveForm" method="POST" class="modal-content border-0 shadow">
+      <div class="modal-header border-0">
+        <h6 class="modal-title fw-bold text-success" id="approveModalTitle">
+          <i class="bi bi-check-circle me-2"></i>Approve Invoice
+        </h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted small">Rejecting invoice <strong>{{ invoice.invoice_number or invoice.id }}</strong>.</p>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Rejection Reason</label>
-          <textarea name="reason" class="form-control" rows="3" placeholder="Optional reason…"></textarea>
+        <p class="text-muted small mb-3">Invoice <strong>{{ invoice.invoice_number or invoice.id }}</strong></p>
+        <div class="mb-0">
+          <label class="form-label small fw-semibold">Comments <span class="text-muted fw-normal">(optional)</span></label>
+          <textarea name="comments" class="form-control" rows="2" placeholder="Any notes for the next reviewer…"></textarea>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-danger btn-sm">Reject Invoice</button>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-success btn-sm">Approve</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+    <form id="rejectForm" method="POST" class="modal-content border-0 shadow">
+      <div class="modal-header border-0">
+        <h6 class="modal-title fw-bold text-danger"><i class="bi bi-x-circle me-2"></i>Reject Invoice</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Rejecting invoice <strong>{{ invoice.invoice_number or invoice.id }}</strong>. It will be sent back to Manual Review.</p>
+        <div class="mb-0">
+          <label class="form-label small fw-semibold">Rejection Reason <span class="text-muted fw-normal">(optional)</span></label>
+          <textarea name="reason" class="form-control" rows="3" placeholder="Why are you rejecting this invoice?"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-danger btn-sm">Reject</button>
       </div>
     </form>
   </div>
@@ -585,6 +746,20 @@ function toggleJson() {
   const chevron = document.getElementById('jsonChevron');
   el.classList.toggle('show');
   chevron.className = el.classList.contains('show') ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+
+/* Set approve form action + title before the modal opens */
+function setApproveLevel(level, label) {
+  document.getElementById('approveForm').action =
+    '/invoices/{{ invoice.id }}/approve/' + level;
+  document.getElementById('approveModalTitle').innerHTML =
+    '<i class="bi bi-check-circle me-2"></i>' + label;
+}
+
+/* Set reject form action before the modal opens */
+function setRejectLevel(level) {
+  document.getElementById('rejectForm').action =
+    '/invoices/{{ invoice.id }}/reject/' + level;
 }
 </script>
 {% endblock %}
