@@ -45,6 +45,29 @@ def index():
             "wf_approved":      {"$sum": {"$cond": [{"$eq": ["$workflow_status", "approved"]},          1, 0]}},
             "wf_ready":         {"$sum": {"$cond": [{"$eq": ["$workflow_status", "ready_for_payment"]}, 1, 0]}},
 
+            # ── Approved-by counts (status_history contains that stage) ──
+            "approved_by_L1": {"$sum": {"$cond": [
+                {"$gt": [{"$size": {"$filter": {
+                    "input": {"$ifNull": ["$status_history", []]},
+                    "as": "h",
+                    "cond": {"$eq": ["$$h.from_status", "pending_L1"]},
+                }}}, 0]}, 1, 0,
+            ]}},
+            "approved_by_L2": {"$sum": {"$cond": [
+                {"$gt": [{"$size": {"$filter": {
+                    "input": {"$ifNull": ["$status_history", []]},
+                    "as": "h",
+                    "cond": {"$eq": ["$$h.from_status", "pending_L2"]},
+                }}}, 0]}, 1, 0,
+            ]}},
+            "approved_by_L3": {"$sum": {"$cond": [
+                {"$gt": [{"$size": {"$filter": {
+                    "input": {"$ifNull": ["$status_history", []]},
+                    "as": "h",
+                    "cond": {"$eq": ["$$h.from_status", "pending_L3"]},
+                }}}, 0]}, 1, 0,
+            ]}},
+
             # ── Risk / PO counts ─────────────────────────────────────────
             "low_risk_count":  {"$sum": {"$cond": [{"$eq": ["$risk_flag", "LOW RISK"]},  1, 0]}},
             "moderate_count":  {"$sum": {"$cond": [{"$eq": ["$risk_flag", "MODERATE"]},  1, 0]}},
@@ -97,6 +120,10 @@ def index():
         "wf_ready":         k.get("wf_ready",         0),
         "po_full":          k.get("po_full",          0),
         "po_partial":       k.get("po_partial",       0),
+        # Approved-by counts
+        "approved_by_L1":   k.get("approved_by_L1",   0),
+        "approved_by_L2":   k.get("approved_by_L2",   0),
+        "approved_by_L3":   k.get("approved_by_L3",   0),
     }
 
     # ── Role-specific workflow queue count ─────────────────────────────────

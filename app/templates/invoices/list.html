@@ -153,9 +153,13 @@
           <label class="form-label form-label-sm mb-1">Status</label>
           <select name="status" class="form-select form-select-sm">
             <option value="">All Statuses</option>
-            {% for st in ['pending','approved','rejected'] %}
-            <option value="{{ st }}" {% if filters.get('status')==st %}selected{% endif %}>{{ st.title() }}</option>
-            {% endfor %}
+            <option value="pending"     {% if filters.get('status')=='pending'     %}selected{% endif %}>Pending</option>
+            <option value="approved"    {% if filters.get('status')=='approved'    %}selected{% endif %}>Approved</option>
+            <option value="rejected"    {% if filters.get('status')=='rejected'    %}selected{% endif %}>Rejected</option>
+            <optgroup label="─── Approval Queue ───"></optgroup>
+            <option value="pending_L1"  {% if filters.get('status')=='pending_L1'  %}selected{% endif %}>⏳ Pending L1</option>
+            <option value="pending_L2"  {% if filters.get('status')=='pending_L2'  %}selected{% endif %}>⏳ Pending L2</option>
+            <option value="pending_L3"  {% if filters.get('status')=='pending_L3'  %}selected{% endif %}>⏳ Pending L3</option>
           </select>
         </div>
         <div class="col-md-1">

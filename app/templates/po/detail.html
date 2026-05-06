@@ -13,6 +13,17 @@
   <div class="col-12">
     <div class="card">
       <div class="card-body">
+        {% if current_user.is_admin() %}
+        <div class="d-flex justify-content-end mb-3">
+          <button type="button" class="btn btn-outline-danger btn-sm"
+                  data-url="{{ url_for('po.delete_po', po_id=po.id) }}"
+                  data-label="{{ (po_dict.po_number or po.id)|e }}"
+                  onclick="confirmDeletePO(this.dataset.url, this.dataset.label)"
+                  title="Delete this PO">
+            <i class="bi bi-trash me-1"></i>Delete PO
+          </button>
+        </div>
+        {% endif %}
         <div class="row g-3">
           <div class="col-md-3">
             <div class="text-muted small">PO Number</div>
@@ -109,4 +120,44 @@
   </div>
   {% endif %}
 </div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deletePOModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title fw-bold text-danger">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Purchase Order
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="mb-1">Are you sure you want to permanently delete:</p>
+        <p class="fw-semibold text-primary mb-3" id="deletePOLabel">—</p>
+        <div class="alert alert-danger py-2 mb-0" style="font-size:.85rem;">
+          <i class="bi bi-exclamation-circle me-1"></i>
+          This action <strong>cannot be undone</strong>. The PO will be permanently removed.
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <form id="deletePOForm" method="POST" style="display:inline;">
+          <button type="submit" class="btn btn-danger btn-sm">
+            <i class="bi bi-trash me-1"></i>Delete Permanently
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDeletePO(url, label) {
+  document.getElementById('deletePOLabel').textContent = label;
+  document.getElementById('deletePOForm').action = url;
+  new bootstrap.Modal(document.getElementById('deletePOModal')).show();
+}
+</script>
 {% endblock %}

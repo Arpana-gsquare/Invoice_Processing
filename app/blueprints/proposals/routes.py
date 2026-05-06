@@ -121,6 +121,33 @@ def _process_single_proposal(file) -> dict:
         return {"success": False, "filename": file.filename, "error": str(exc)}
 
 
+# -- Delete -------------------------------------------------------------------
+@proposals_bp.route("/<proposal_id>/delete", methods=["POST"])
+@login_required
+def delete_proposal(proposal_id: str):
+    """Hard delete a proposal — admin only, no recycle bin."""
+    if not current_user.is_admin():
+        flash("Only administrators can delete Proposals.", "danger")
+        return redirect(url_for("proposals.list_proposals"))
+    proposal = Proposal.get_by_id(proposal_id)
+    if not proposal:
+        flash("Proposal not found.", "danger")
+        return redirect(url_for("proposals.list_proposals"))
+    proposal_ref = proposal.proposal_id or proposal_id
+    from ...extensions import get_db
+    from bson import ObjectId
+    get_db().proposals.delete_one({"_id": ObjectId(proposal_id)})
+    AuditLog.log(
+        invoice_id="proposal:%s" % proposal_id,
+        action="proposal_deleted",
+        actor_id=current_user.id,
+        actor_name=current_user.name,
+        details={"proposal_id": proposal_ref, "vendor": proposal.vendor_name},
+    )
+    flash("Proposal '%s' permanently deleted." % proposal_ref, "warning")
+    return redirect(url_for("proposals.list_proposals"))
+
+
 # -- Detail -------------------------------------------------------------------
 @proposals_bp.route("/<proposal_id>")
 @login_required

@@ -118,6 +118,33 @@ def _process_single_po_upload(file) -> dict:
         return {"success": False, "filename": file.filename, "error": str(exc)}
 
 
+# -- PO Delete ----------------------------------------------------------------
+@po_bp.route("/<po_id>/delete", methods=["POST"])
+@login_required
+def delete_po(po_id: str):
+    """Hard delete a PO — admin only, no recycle bin."""
+    if not current_user.is_admin():
+        flash("Only administrators can delete Purchase Orders.", "danger")
+        return redirect(url_for("po.list_pos"))
+    po = PurchaseOrder.get_by_id(po_id)
+    if not po:
+        flash("Purchase Order not found.", "danger")
+        return redirect(url_for("po.list_pos"))
+    po_number = po.po_number or po_id
+    from ...extensions import get_db
+    from bson import ObjectId
+    get_db().purchase_orders.delete_one({"_id": ObjectId(po_id)})
+    AuditLog.log(
+        invoice_id="po:%s" % po_id,
+        action="po_deleted",
+        actor_id=current_user.id,
+        actor_name=current_user.name,
+        details={"po_number": po_number, "vendor": po.vendor_name},
+    )
+    flash("Purchase Order '%s' permanently deleted." % po_number, "warning")
+    return redirect(url_for("po.list_pos"))
+
+
 # -- PO Detail ----------------------------------------------------------------
 @po_bp.route("/<po_id>")
 @login_required

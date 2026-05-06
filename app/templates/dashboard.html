@@ -38,37 +38,27 @@
 <!-- ── KPI Row 1 ─────────────────────────────────────── -->
 <div class="row g-3 mb-3">
 
-  <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #1F4E79;">
+  <div class="col-6 col-md-4">
+    <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices') }}">
+      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #1F4E79;">
         <div class="stat-value text-primary">{{ stats.total_invoices }}</div>
         <div class="stat-label text-muted">Total Invoices</div>
       </div>
     </a>
   </div>
 
-  <div class="col-6 col-md-3">
-    {# pending_approval excludes DUPLICATE-flagged invoices #}
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending', exclude_risk_flag='DUPLICATE') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #F59E0B;">
-        <div class="stat-value text-warning">{{ stats.pending_approval }}</div>
-        <div class="stat-label text-muted">Pending Approval</div>
-      </div>
-    </a>
-  </div>
-
-  <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', workflow_status='missing_po') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #F43F5E;">
+  <div class="col-6 col-md-4">
+    <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', workflow_status='missing_po') }}">
+      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #F43F5E;">
         <div class="stat-value" style="color:#BE123C;">{{ stats.wf_missing_po }}</div>
         <div class="stat-label text-muted">Missing PO</div>
       </div>
     </a>
   </div>
 
-  <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', overdue='1') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #EF4444;">
+  <div class="col-6 col-md-4">
+    <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', overdue='1') }}">
+      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #EF4444;">
         <div class="stat-value text-danger">{{ stats.overdue }}</div>
         <div class="stat-label text-muted">Overdue</div>
       </div>
@@ -81,17 +71,8 @@
 <div class="row g-3 mb-4">
 
   <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='LOW RISK') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #10B981;">
-        <div class="stat-value" style="font-size:1.5rem;color:#065F46;">{{ stats.low_risk_count }}</div>
-        <div class="stat-label text-muted">PROCEED</div>
-      </div>
-    </a>
-  </div>
-
-  <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='HIGH RISK') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #EF4444;">
+    <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', risk_flag='HIGH RISK') }}">
+      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #EF4444;">
         <div class="stat-value" style="font-size:1.5rem;color:#991B1B;">{{ stats.high_risk_count }}</div>
         <div class="stat-label text-muted">HIGH RISK</div>
       </div>
@@ -99,8 +80,8 @@
   </div>
 
   <div class="col-6 col-md-3">
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', risk_flag='DUPLICATE') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #6366F1;">
+    <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', risk_flag='DUPLICATE') }}">
+      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #6366F1;">
         <div class="stat-value" style="font-size:1.5rem;color:#3730A3;">{{ stats.duplicate_count }}</div>
         <div class="stat-label text-muted">DUPLICATE</div>
       </div>
@@ -108,15 +89,158 @@
   </div>
 
   <div class="col-6 col-md-3">
-    {# Payment tile — all approved invoices ready for payment #}
-    <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='approved') }}">
-      <div class="stat-card card kpi-tile" style="border-left:4px solid #0891B2;">
+    <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', workflow_status='manual_review') }}">
+      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #F59E0B;">
+        <div class="stat-value" style="font-size:1.5rem;color:#92400E;">{{ stats.wf_manual_review }}</div>
+        <div class="stat-label text-muted">Manual Review</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <a class="tile-link h-100" href="{{ url_for('invoices.list_invoices', status='approved') }}">
+      <div class="stat-card card kpi-tile h-100" style="border-left:4px solid #0891B2;">
         <div class="stat-value" style="font-size:1.5rem;color:#0E7490;">{{ stats.approved }}</div>
         <div class="stat-label text-muted">💳 Ready to Pay</div>
       </div>
     </a>
   </div>
 
+</div>
+
+<!-- ── L1 / L2 / L3 Approval Cards ──────────────────── -->
+<div class="card mb-4 p-3">
+  <div class="mb-2">
+    <span class="fw-semibold text-muted" style="font-size:.82rem;">
+      <i class="bi bi-people me-1"></i>APPROVAL PIPELINE
+    </span>
+  </div>
+
+  {# Row 1 — Pending queues #}
+  <div class="row g-2 mb-2">
+    <div class="col-12 col-sm-6 col-md-4">
+      <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending_L1') }}">
+        <div class="card kpi-tile h-100" style="border-left:4px solid #F59E0B;background:#FFFBEB;">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div style="font-size:1.6rem;font-weight:700;color:#92400E;line-height:1;">{{ stats.wf_pending_L1 }}</div>
+                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                  <i class="bi bi-hourglass-split me-1"></i>Pending L1
+                </div>
+              </div>
+              <div style="width:36px;height:36px;border-radius:50%;background:#FEF3C7;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:.85rem;font-weight:700;color:#92400E;">L1</div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4">
+      <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending_L2') }}">
+        <div class="card kpi-tile h-100" style="border-left:4px solid #3B82F6;background:#EFF6FF;">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div style="font-size:1.6rem;font-weight:700;color:#1E40AF;line-height:1;">{{ stats.wf_pending_L2 }}</div>
+                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                  <i class="bi bi-hourglass-split me-1"></i>Pending L2
+                </div>
+              </div>
+              <div style="width:36px;height:36px;border-radius:50%;background:#DBEAFE;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:.85rem;font-weight:700;color:#1E40AF;">L2</div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4">
+      <a class="tile-link" href="{{ url_for('invoices.list_invoices', status='pending_L3') }}">
+        <div class="card kpi-tile h-100" style="border-left:4px solid #8B5CF6;background:#F5F3FF;">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div style="font-size:1.6rem;font-weight:700;color:#5B21B6;line-height:1;">{{ stats.wf_pending_L3 }}</div>
+                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                  <i class="bi bi-hourglass-split me-1"></i>Pending L3
+                </div>
+              </div>
+              <div style="width:36px;height:36px;border-radius:50%;background:#EDE9FE;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:.85rem;font-weight:700;color:#5B21B6;">L3</div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  {# Row 2 — Approved by level #}
+  <div class="row g-2">
+    <div class="col-12 col-sm-6 col-md-4">
+      <a class="tile-link" href="{{ url_for('invoices.list_invoices', approved_by='L1') }}">
+        <div class="card kpi-tile h-100" style="border-left:4px solid #10B981;background:#F0FDF4;">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div style="font-size:1.6rem;font-weight:700;color:#065F46;line-height:1;">{{ stats.approved_by_L1 }}</div>
+                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                  <i class="bi bi-check-circle me-1"></i>Approved by L1
+                </div>
+              </div>
+              <div style="width:36px;height:36px;border-radius:50%;background:#D1FAE5;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:.85rem;font-weight:700;color:#065F46;">✓</div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4">
+      <a class="tile-link" href="{{ url_for('invoices.list_invoices', approved_by='L2') }}">
+        <div class="card kpi-tile h-100" style="border-left:4px solid #10B981;background:#F0FDF4;">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div style="font-size:1.6rem;font-weight:700;color:#065F46;line-height:1;">{{ stats.approved_by_L2 }}</div>
+                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                  <i class="bi bi-check-circle me-1"></i>Approved by L2
+                </div>
+              </div>
+              <div style="width:36px;height:36px;border-radius:50%;background:#D1FAE5;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:.85rem;font-weight:700;color:#065F46;">✓</div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-12 col-sm-6 col-md-4">
+      <a class="tile-link" href="{{ url_for('invoices.list_invoices', approved_by='L3') }}">
+        <div class="card kpi-tile h-100" style="border-left:4px solid #10B981;background:#F0FDF4;">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div style="font-size:1.6rem;font-weight:700;color:#065F46;line-height:1;">{{ stats.approved_by_L3 }}</div>
+                <div class="text-muted" style="font-size:.78rem;margin-top:.15rem;">
+                  <i class="bi bi-check2-all me-1"></i>Approved by L3
+                </div>
+              </div>
+              <div style="width:36px;height:36px;border-radius:50%;background:#D1FAE5;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:.85rem;font-weight:700;color:#065F46;">✓</div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
 </div>
 
 <!-- ── Workflow Approval Queue Tabs ──────────────────── -->

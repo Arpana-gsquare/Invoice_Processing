@@ -44,7 +44,8 @@ def build_filters(args: dict) -> dict:
     """
     Convert URL query parameters into a MongoDB filter dict.
     Supported params: vendor, risk_flag, exclude_risk_flag, status,
-                      date_from, date_to, search, overdue, po_match_status
+                      date_from, date_to, search, overdue, po_match_status,
+                      workflow_status, approved_by
     """
     from datetime import datetime, timezone
     query: dict = {}
@@ -60,7 +61,22 @@ def build_filters(args: dict) -> dict:
         query["risk_flag"] = {"$ne": args["exclude_risk_flag"]}
 
     if args.get("status"):
-        query["status"] = args["status"]
+        s = args["status"]
+        # L-level pending statuses live in workflow_status field
+        if s in ("pending_L1", "pending_L2", "pending_L3"):
+            query["workflow_status"] = s
+        else:
+            query["status"] = s
+
+    # Approved-by-level filter: invoices that have passed a given approval stage
+    # e.g. approved_by=L1 → status_history has an entry from pending_L1
+    if args.get("approved_by"):
+        level = args["approved_by"]
+        from_map = {"L1": "pending_L1", "L2": "pending_L2", "L3": "pending_L3"}
+        if level in from_map:
+            query["status_history"] = {
+                "$elemMatch": {"from_status": from_map[level]}
+            }
 
     if args.get("date_from") or args.get("date_to"):
         date_filter: dict = {}

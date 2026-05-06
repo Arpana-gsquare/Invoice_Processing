@@ -4,6 +4,7 @@
 <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Home</a></li>
 <li class="breadcrumb-item active">Proposals</li>
 {% endblock %}
+
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Proposals</h4>
@@ -46,7 +47,20 @@
               </div>
             </td>
             <td onclick="event.stopPropagation()">
-              <a href="{{ url_for('proposals.detail', proposal_id=prop.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('proposals.detail', proposal_id=prop.id) }}" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-eye"></i>
+                </a>
+                {% if current_user.is_admin() %}
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-url="{{ url_for('proposals.delete_proposal', proposal_id=prop.id) }}"
+                        data-label="{{ (d.proposal_id or prop.id)|e }}"
+                        onclick="confirmDeleteProposal(this.dataset.url, this.dataset.label)"
+                        title="Delete Proposal">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+              </div>
             </td>
           </tr>
         {% endfor %}
@@ -70,9 +84,51 @@
       <i class="bi bi-file-earmark-x" style="font-size:3rem;opacity:.3;"></i>
       <p class="mt-3 mb-1 fw-semibold">No proposals yet</p>
       <p class="small mb-3">Upload proposal documents to enable AI-powered comparison.</p>
-      <a href="{{ url_for('proposals.upload') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Upload First Proposal</a>
+      <a href="{{ url_for('proposals.upload') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg me-1"></i>Upload First Proposal
+      </a>
     </div>
     {% endif %}
   </div>
 </div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteProposalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title fw-bold text-danger">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Proposal
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="mb-1">Are you sure you want to permanently delete:</p>
+        <p class="fw-semibold text-primary mb-3" id="deleteProposalLabel">—</p>
+        <div class="alert alert-danger py-2 mb-0" style="font-size:.85rem;">
+          <i class="bi bi-exclamation-circle me-1"></i>
+          This action <strong>cannot be undone</strong>. The proposal will be permanently removed.
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <form id="deleteProposalForm" method="POST" style="display:inline;">
+          <button type="submit" class="btn btn-danger btn-sm">
+            <i class="bi bi-trash me-1"></i>Delete Permanently
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDeleteProposal(url, label) {
+  document.getElementById('deleteProposalLabel').textContent = label;
+  document.getElementById('deleteProposalForm').action = url;
+  new bootstrap.Modal(document.getElementById('deleteProposalModal')).show();
+}
+</script>
 {% endblock %}
