@@ -92,8 +92,18 @@ def compare_invoice_to_po(invoice_data: dict, po) -> dict[str, Any]:
 
     return {
         "score":  score,
-        "status": _status_from_score(score),
+        "status": _display_status_from_score(score),   # UI-friendly: MATCHED / PARTIAL_MATCH / MISMATCH
         "header": {
+            "po_number": {                              # FIX: was missing — caused UndefinedError in template
+                "invoice": invoice_data.get("po_number") or "",
+                "po":      getattr(po, "po_number", "") or "",
+                "match":   bool(
+                    invoice_data.get("po_number")
+                    and getattr(po, "po_number", "")
+                    and (invoice_data.get("po_number") or "").strip().lower()
+                       == (getattr(po, "po_number", "") or "").strip().lower()
+                ),
+            },
             "vendor_name": {
                 "invoice":    invoice_data.get("vendor_name"),
                 "po":         po.vendor_name,
@@ -336,11 +346,21 @@ def _within_pct(a: float, b: float, pct: float) -> bool:
 
 
 def _status_from_score(score: int) -> str:
+    """Workflow-routing status (stored in invoice doc)."""
     if score >= FULL_THRESHOLD:
         return "full"
     if score >= PARTIAL_THRESHOLD:
         return "partial"
     return "none"
+
+
+def _display_status_from_score(score: int) -> str:
+    """UI-display status (used in comparison template badges)."""
+    if score >= FULL_THRESHOLD:
+        return "MATCHED"
+    if score >= PARTIAL_THRESHOLD:
+        return "PARTIAL_MATCH"
+    return "MISMATCH"
 
 
 def _build_result(po_id, status: str, score: int, details: dict) -> dict:

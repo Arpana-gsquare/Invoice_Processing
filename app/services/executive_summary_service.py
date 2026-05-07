@@ -74,7 +74,9 @@ def aggregate_kpis() -> dict[str, Any]:
             "moderate":      {"$sum": {"$cond": [{"$eq": ["$risk_flag", "MODERATE"]},  1, 0]}},
             "low_risk":      {"$sum": {"$cond": [{"$eq": ["$risk_flag", "LOW RISK"]},  1, 0]}},
             "duplicates":    {"$sum": {"$cond": [{"$eq": ["$risk_flag", "DUPLICATE"]}, 1, 0]}},
-            "po_matched":    {"$sum": {"$cond": [{"$eq": ["$po_match_status", "MATCHED"]}, 1, 0]}},
+            # po_match_status is stored as "full" / "partial" / "none" (workflow values)
+            "po_matched":    {"$sum": {"$cond": [{"$eq": ["$po_match_status", "full"]}, 1, 0]}},
+            # proposal_match_status is stored as "MATCHED" / "PARTIAL_MATCH" / "MISMATCH" / "NO_PROPOSAL"
             "prop_matched":  {"$sum": {"$cond": [{"$eq": ["$proposal_match_status", "MATCHED"]}, 1, 0]}},
             "overdue":       {"$sum": {"$cond": [
                 {"$and": [{"$eq": ["$status", "pending"]},
@@ -171,11 +173,35 @@ def aggregate_kpis() -> dict[str, Any]:
             "rejection_pct":   round(v["rejected"] / cnt * 100, 1),
         })
 
+    # Workflow pipeline stage counts
+    wf_raw = list(db.invoices.aggregate([
+        {"$match": base},
+        {"$group": {
+            "_id":               None,
+            "pending_l1":        {"$sum": {"$cond": [{"$eq": ["$workflow_status", "pending_L1"]},        1, 0]}},
+            "pending_l2":        {"$sum": {"$cond": [{"$eq": ["$workflow_status", "pending_L2"]},        1, 0]}},
+            "pending_l3":        {"$sum": {"$cond": [{"$eq": ["$workflow_status", "pending_L3"]},        1, 0]}},
+            "manual_review":     {"$sum": {"$cond": [{"$eq": ["$workflow_status", "manual_review"]},     1, 0]}},
+            "missing_po":        {"$sum": {"$cond": [{"$eq": ["$workflow_status", "missing_po"]},        1, 0]}},
+            "ready_for_payment": {"$sum": {"$cond": [{"$eq": ["$workflow_status", "ready_for_payment"]}, 1, 0]}},
+        }}
+    ]))
+    wf = wf_raw[0] if wf_raw else {}
+    workflow_kpis = {
+        "pending_l1":        wf.get("pending_l1",        0),
+        "pending_l2":        wf.get("pending_l2",        0),
+        "pending_l3":        wf.get("pending_l3",        0),
+        "manual_review":     wf.get("manual_review",     0),
+        "missing_po":        wf.get("missing_po",        0),
+        "ready_for_payment": wf.get("ready_for_payment", 0),
+    }
+
     return {
         "generated_at": now.isoformat(),
         "global":       global_kpis,
         "mom":          mom,
         "top_vendors":  top_vendors,
+        "workflow":     workflow_kpis,
     }
 
 
@@ -339,24 +365,36 @@ def detect_anomalies(kpis: dict) -> list[dict]:
 # =============================================================================
 
 INSIGHT_PROMPT = """\
-You are a financial analyst AI. You have been given:
-1. Headline invoice portfolio metrics
-2. A list of pre-detected anomalies (flagged by automated rules)
+You are a financial analyst AI generating executive insights for a finance team.
 
-Your job is to write 5-8 concise executive insights for a finance team.
-- Prioritise HIGH-severity anomalies
-- Reference specific numbers from the data
-- Add context or implications a rule cannot provide (e.g. "this may indicate...")
-- Each insight is 1-2 sentences max
-- If there are no anomalies, summarise the portfolio health positively
+CRITICAL ACCURACY RULES — you MUST follow these without exception:
+1. Each metric below is DISTINCT. Never combine two metrics into one sentence just because they share the same numeric value.
+2. Treat FINAL_STATUS metrics (approved/rejected/pending) separately from PO_MATCHING metrics. They measure completely different things.
+3. Use ONLY the numbers provided — do not invent, estimate, or round differently.
+4. If a metric is labelled "(NOTE: ...)" read the note carefully — it explains what the metric actually means.
+5. Write 5-8 insights. Each insight must be 1-2 sentences max.
+6. Prioritise HIGH-severity anomalies first.
+7. If no anomalies exist, summarise portfolio health positively using the metrics.
 
-METRICS:
-{metrics_json}
+FINAL STATUS METRICS  (these track the final approval decision on invoices):
+{final_status_json}
 
-ANOMALIES:
+PO MATCHING METRICS  (these track whether invoices were matched to a Purchase Order — independent of approval):
+{po_matching_json}
+
+PROPOSAL MATCHING METRICS  (these track whether invoices were matched to a vendor Proposal — independent of approval):
+{proposal_matching_json}
+
+WORKFLOW PIPELINE METRICS  (these track which approval stage each invoice is currently at):
+{workflow_json}
+
+VOLUME & SPEND METRICS:
+{volume_json}
+
+PRE-DETECTED ANOMALIES (flagged by automated rules):
 {anomalies_json}
 
-Return ONLY valid JSON - no markdown, no explanation:
+Return ONLY valid JSON — no markdown, no fences, no explanation:
 {{"insights": ["insight 1", "insight 2", ...]}}"""
 
 
@@ -365,14 +403,64 @@ def generate_insights(kpis: dict, anomalies: list[dict]) -> list[str]:
 
     g   = kpis["global"]
     mom = kpis["mom"]
+    wf  = kpis.get("workflow", {})
 
-    metrics = {
-        "total_invoices":        g["total_invoices"],
+    total = g["total_invoices"] or 1
+
+    # ── Final approval-status metrics (what happened at the END of the workflow)
+    final_status = {
+        "total_invoices":  g["total_invoices"],
+        "approved_count":  g["approved_count"],
+        "final_approved_pct": {
+            "value": g["approval_rate_pct"],
+            "NOTE":  "% of ALL invoices that reached FINAL status=approved (completed L1+L2+L3 chain)",
+        },
+        "rejected_count":  g["rejected_count"],
+        "final_rejected_pct": {
+            "value": g["rejection_rate_pct"],
+            "NOTE":  "% of ALL invoices that reached FINAL status=rejected",
+        },
+        "still_pending_count": g["pending_count"],
+    }
+
+    # ── PO matching metrics (independent of approval; measures procurement coverage)
+    po_matching = {
+        "po_fully_matched_count": g.get("po_match_rate_pct", 0) / 100 * total,
+        "po_fully_matched_pct": {
+            "value": g["po_match_rate_pct"],
+            "NOTE":  "% of ALL invoices where a Purchase Order was found with FULL match score (>=85/100). "
+                     "This is SEPARATE from the approval rate above.",
+        },
+    }
+
+    # ── Proposal matching metrics
+    proposal_matching = {
+        "proposal_matched_pct": {
+            "value": g["proposal_match_rate_pct"],
+            "NOTE":  "% of ALL invoices matched to a vendor Proposal. "
+                     "Independent of PO matching and approval status.",
+        },
+    }
+
+    # ── Workflow pipeline (in-progress stage distribution)
+    workflow = {
+        "pending_L1_review":      wf.get("pending_l1", 0),
+        "pending_L2_review":      wf.get("pending_l2", 0),
+        "pending_L3_review":      wf.get("pending_l3", 0),
+        "in_manual_review":       wf.get("manual_review", 0),
+        "missing_po_stage":       wf.get("missing_po", 0),
+        "ready_for_payment":      wf.get("ready_for_payment", 0),
+        "NOTE": "These counts show where invoices currently sit in the approval pipeline.",
+    }
+
+    # ── Volume & spend
+    volume = {
         "total_amount":          g["total_amount"],
         "avg_invoice_amount":    g["avg_invoice_amount"],
-        "approval_rate_pct":     g["approval_rate_pct"],
-        "rejection_rate_pct":    g["rejection_rate_pct"],
-        "po_match_rate_pct":     g["po_match_rate_pct"],
+        "high_risk_count":       g["high_risk_count"],
+        "high_risk_pct":         g["high_risk_pct"],
+        "overdue_count":         g["overdue_count"],
+        "duplicate_count":       g["duplicate_count"],
         "mom_amount_change_pct": mom.get("mom_amount_change_pct"),
         "current_month_total":   mom["current_month_total"],
         "previous_month_total":  mom["previous_month_total"],
@@ -386,7 +474,11 @@ def generate_insights(kpis: dict, anomalies: list[dict]) -> list[str]:
     ]
 
     prompt = INSIGHT_PROMPT.format(
-        metrics_json=json.dumps(metrics, indent=2),
+        final_status_json=json.dumps(final_status, indent=2),
+        po_matching_json=json.dumps(po_matching, indent=2),
+        proposal_matching_json=json.dumps(proposal_matching, indent=2),
+        workflow_json=json.dumps(workflow, indent=2),
+        volume_json=json.dumps(volume, indent=2),
         anomalies_json=json.dumps(slim_anomalies, indent=2),
     )
 

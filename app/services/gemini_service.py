@@ -117,8 +117,13 @@ Rules:
 
 def _build_insight_prompt(invoice: dict, proposal: dict, po: dict | None) -> str:
     """Build the Gemini insight-generation prompt from structured data."""
-    po_section = ""
+
+    # Resolve currency symbols from the actual documents — never default to "$"
+    inv_currency  = (invoice.get("currency_symbol")  or invoice.get("currency")  or "").strip()
+    prop_currency = (proposal.get("currency_symbol") or proposal.get("currency") or inv_currency).strip()
+
     if po:
+        po_currency  = (po.get("currency_symbol") or po.get("currency") or inv_currency).strip()
         po_section = """
 PURCHASE ORDER (authorised by buyer):
   PO Number:    %s
@@ -131,14 +136,30 @@ PURCHASE ORDER (authorised by buyer):
             po.get("po_number", "N/A"),
             po.get("vendor_name", "N/A"),
             po.get("po_date", "N/A"),
-            po.get("currency_symbol", "$"),
-            "{:,.2f}".format(float(po.get("total_amount", 0))),
-            _format_line_items(po.get("line_items", [])),
+            po_currency,
+            "{:,.2f}".format(float(po.get("total_amount") or 0)),
+            _format_line_items(po.get("line_items") or []),
+        )
+        po_alignment_instruction = (
+            'For "po_alignment": set has_po=true and compare the invoice amounts/items '
+            'against the PO data provided above.'
+        )
+    else:
+        po_section = "\nNO PURCHASE ORDER LINKED TO THIS INVOICE.\n"
+        po_alignment_instruction = (
+            'For "po_alignment": set has_po=false and finding MUST be exactly: '
+            '"No PO linked to this invoice — PO alignment cannot be assessed." '
+            'Do NOT invent any PO data or alignment conclusion.'
         )
 
     return """You are a senior procurement analyst reviewing financial documents.
 
-Analyze the following three documents and generate structured business insights.
+CRITICAL ACCURACY RULES — follow without exception:
+1. Base every finding ONLY on the document data provided below. Never invent or assume figures.
+2. Currency symbols must be taken exactly from the documents. Do not substitute or guess.
+3. %s
+
+Analyze the following documents and generate structured business insights.
 
 INVOICE (what vendor is charging):
   Invoice #:    %s
@@ -196,28 +217,29 @@ Return ONLY a valid JSON object (no markdown, no fences) with this exact structu
   ],
   "po_alignment": {
     "has_po": <bool>,
-    "finding": "<how well invoice aligns with PO, or N/A if no PO>"
+    "finding": "<finding per the po_alignment instruction above>"
   },
   "recommendations": [
     "<actionable recommendation for the finance/procurement team>"
   ],
   "risk_level": "<LOW | MEDIUM | HIGH>"
 }""" % (
+        po_alignment_instruction,
         invoice.get("invoice_number", "N/A"),
         invoice.get("vendor_name", "N/A"),
         invoice.get("invoice_date", "N/A"),
         invoice.get("due_date", "N/A"),
-        invoice.get("currency_symbol", "$"),
-        "{:,.2f}".format(float(invoice.get("total_amount", 0))),
-        _format_line_items(invoice.get("line_items", [])),
+        inv_currency,
+        "{:,.2f}".format(float(invoice.get("total_amount") or 0)),
+        _format_line_items(invoice.get("line_items") or []),
         proposal.get("proposal_id", "N/A"),
         proposal.get("vendor_name", "N/A"),
         proposal.get("proposal_date", "N/A"),
         proposal.get("validity_date", "N/A"),
-        proposal.get("currency_symbol", "$"),
-        "{:,.2f}".format(float(proposal.get("total_amount", 0))),
+        prop_currency,
+        "{:,.2f}".format(float(proposal.get("total_amount") or 0)),
         proposal.get("terms_conditions", "N/A"),
-        _format_line_items(proposal.get("line_items", [])),
+        _format_line_items(proposal.get("line_items") or []),
         po_section,
     )
 

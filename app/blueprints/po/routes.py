@@ -5,6 +5,7 @@ Routes:
   GET  /upload                    - upload form
   POST /upload                    - process PO file
   GET  /<po_id>                   - PO detail
+  POST /<po_id>/delete            - hard delete (admin only)
   POST /invoice/<invoice_id>/match-po  - manually trigger match
   GET  /invoice/<invoice_id>/comparison - comparison view
 """
@@ -62,7 +63,7 @@ def upload():
         result = _process_single_po_upload(file)
         results.append(result)
 
-    ok_list = [r for r in results if r["success"]]
+    ok_list   = [r for r in results if r["success"]]
     fail_list = [r for r in results if not r["success"]]
     if ok_list:
         flash("%d PO(s) uploaded and processed successfully." % len(ok_list), "success")
@@ -82,11 +83,11 @@ def _process_single_po_upload(file) -> dict:
 
         doc = {
             **extracted,
-            "file_path": file_path,
+            "file_path":         file_path,
             "original_filename": original_name,
-            "file_type": ext,
-            "upload_timestamp": datetime.now(timezone.utc),
-            "uploaded_by": current_user.id,
+            "file_type":         ext,
+            "upload_timestamp":  datetime.now(timezone.utc),
+            "uploaded_by":       current_user.id,
         }
 
         # Parse po_date string -> datetime
@@ -105,9 +106,9 @@ def _process_single_po_upload(file) -> dict:
             actor_id=current_user.id,
             actor_name=current_user.name,
             details={
-                "filename": original_name,
-                "po_number": po.po_number,
-                "vendor": po.vendor_name,
+                "filename":   original_name,
+                "po_number":  po.po_number,
+                "vendor":     po.vendor_name,
                 "confidence": extracted.get("extraction_confidence"),
             },
         )
@@ -160,7 +161,10 @@ def detail(po_id: str):
 @po_bp.route("/invoice/<invoice_id>/match-po", methods=["POST"])
 @login_required
 def match_po(invoice_id: str):
-    """Re-run PO matching for an existing invoice."""
+    """Re-run PO matching for an existing invoice.
+    After updating PO data, regenerates proposal insights so that the
+    po_alignment section reflects the newly matched PO.
+    """
     invoice = Invoice.get_by_id(invoice_id)
     if not invoice:
         flash("Invoice not found.", "danger")
@@ -179,11 +183,30 @@ def match_po(invoice_id: str):
         actor_id=current_user.id,
         actor_name=current_user.name,
         details={
-            "po_id":     match_result["po_id"],
-            "status":    match_result["po_match_status"],
-            "score":     match_result["match_score"],
+            "po_id":  match_result["po_id"],
+            "status": match_result["po_match_status"],
+            "score":  match_result["match_score"],
         },
     )
+
+    # Regenerate proposal insights with updated PO context so that
+    # po_alignment section reflects the newly matched (or cleared) PO.
+    inv_dict    = invoice.to_dict()   # already has updated po_id in _doc
+    proposal_id = inv_dict.get("proposal_id")
+    if proposal_id:
+        try:
+            from ...services.proposal_matching_service import match_invoice_to_proposal
+            prop_result = match_invoice_to_proposal(inv_dict)
+            invoice.update({
+                "proposal_id":           prop_result["proposal_id"],
+                "proposal_match_status": prop_result["proposal_match_status"],
+                "proposal_match_score":  prop_result["proposal_match_score"],
+                "proposal_insights":     prop_result["proposal_insights"],
+            })
+            logger.info("Proposal insights regenerated after PO re-match for %s", invoice_id)
+        except Exception as prop_exc:
+            logger.warning("Proposal insight regen failed after PO re-match: %s", prop_exc)
+
     flash("PO matching complete: %s (score %d/100)" % (
         match_result["po_match_status"], match_result["match_score"]), "info")
     return redirect(url_for("invoices.detail", invoice_id=invoice_id))
@@ -199,8 +222,8 @@ def comparison(invoice_id: str):
         return redirect(url_for("invoices.list_invoices"))
 
     inv_dict = invoice.to_dict()
-    po_id = inv_dict.get("po_id")
-    po = PurchaseOrder.get_by_id(po_id) if po_id else None
+    po_id    = inv_dict.get("po_id")
+    po       = PurchaseOrder.get_by_id(po_id) if po_id else None
 
     comparison_data = None
     if po:
